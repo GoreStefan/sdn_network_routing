@@ -15,7 +15,7 @@ SERVICE_PORT = 8888
 """
 CREATING LARGE DATA
 """
-def large_data(size_in_mb): 
+def large_data(size_in_kb): 
     return b"a"*(size_in_kb*1024*1024)
 
 if __name__ == "__main__":

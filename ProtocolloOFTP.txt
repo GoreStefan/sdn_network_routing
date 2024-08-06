@@ -1,0 +1,48 @@
+EV.MSG.BODY ESEMPIO
+
+[
+    {
+        "table_id": 0,
+        "duration_sec": 123,
+        "duration_nsec": 456789,
+        "priority": 1,
+        "idle_timeout": 10,
+        "hard_timeout": 60,
+        "flags": 0,
+        "packet_count": 1000,
+        "byte_count": 123456,
+        "match": {
+            "in_port": 1,
+            "eth_dst": "ff:ff:ff:ff:ff:ff",
+            "eth_src": "00:00:00:00:00:01",
+            "eth_type": 2048,  # IPv4
+            "ipv4_src": "192.168.1.1",
+            "ipv4_dst": "192.168.1.2",
+            "ip_proto": 6,     # TCP
+            "tcp_src": 12345,
+            "tcp_dst": 80
+        }
+    },
+    {
+        "table_id": 0,
+        "duration_sec": 321,
+        "duration_nsec": 987654,
+        "priority": 2,
+        "idle_timeout": 20,
+        "hard_timeout": 120,
+        "flags": 1,
+        "packet_count": 2000,
+        "byte_count": 654321,
+        "match": {
+            "in_port": 2,
+            "eth_dst": "ff:ff:ff:ff:ff:ff",
+            "eth_src": "00:00:00:00:00:02",
+            "eth_type": 2048,  # IPv4
+            "ipv4_src": "10.0.0.1",
+            "ipv4_dst": "10.0.0.2",
+            "ip_proto": 1,     # ICMP
+            "icmpv4_type": 8  # Echo Request
+        }
+    }
+]
+

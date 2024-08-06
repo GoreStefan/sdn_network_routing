@@ -1,0 +1,7 @@
+{
+    "num_hosts" : 10,
+    "num_switch" : 10,
+    "interval_update_latency" : 1,
+    "interval_controlle_switch_latency" : 1,
+    "intervall_communication_process" : 1
+}

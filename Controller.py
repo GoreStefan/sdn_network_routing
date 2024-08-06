@@ -1,6 +1,31 @@
-"""
-INSERT ALL IMPORTS
-"""
+from ryu.base import app_manager
+from ryu.controller import ofp_event
+from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
+from ryu.controller.handler import set_ev_cls
+from ryu.ofproto import ofproto_v1_3
+from ryu.lib.packet import packet, arp, ethernet, ipv4, ipv6, ether_types, icmp
+from ryu.lib import hub
+
+from ryu.app import simple_switch_13
+from ryu.app.wsgi import ControllerBase
+from ryu.app.wsgi import Response
+from ryu.app.wsgi import route
+from ryu.app.wsgi import WSGIApplication
+
+from enum import Enum
+from collections import defaultdict
+
+import random
+import time
+import copy
+import json
+import sys
+
+sys.path.append("..")
+
+#TO DO: creating a JSON configuration file
+interval_update_latency = 10 
+interval_controller_switch_latency = 10 
 
 class ControllerMain(simple_switch_13.SimpleSwitch13):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -87,8 +112,9 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         }
         """
 
+        #ALL DATA STRUCTURE WE NEED 
         self.last_arrived_package = {}
-
+        self.dpidToDatapath = {}
 
 
         @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
@@ -118,9 +144,9 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             self.add_flow(datapath, 0, match, actions)
 
             match = parser.OFPMatch(
-            eth_type=0x0800,
-            ip_proto=1,
-            icmpv4_type=3
+                eth_type=0x0800,
+                ip_proto=1,
+                icmpv4_type=3
             )
             actions = []
             self.add_flow(datapath, 1, match, actions)
@@ -160,16 +186,18 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 pkt.add_protocol(ethernet.ethernet(ethertype=0x07c3,
                                                 dst='ff:ff:ff:ff:ff:ff',
                                                 src='00:00:00:00:00:09'))
-                whole_data = str(time.time()) + '#' + str(dpid) + '#'
+                whole_data = str(time.time()) + '#' + str(datapath.id) + '#'
                 pkt.add_protocol(bytes(whole_data, "utf-8"))
                 pkt.serialize()
-                data = pck.data
+                data = pkt.data
                 #building and sending the message
-                req = ofp_parser.OFPPacketOut(datapath, buffer_id,
-                                            in_port, actions, data)
+                req = ofp_parser.OFPPacketOut(datapath, ofproto.OFP_NO_BUFFER,
+                                            ofproto.OFPP_CONTROLLER, actions, data)
                 datapath.send_msg(req)
                 hub.sleep(interval_update_latency)
 
+
+        #self.send_packet_out(datapath, ofproto.OFP_NO_BUFFER, ofproto.OFPP_CONTROLLER)
 
         def send_packet_out(self, datapath, buffer_id, in_port):
             """
@@ -613,9 +641,4 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 actions = [ofp_parser.OFPActionOutput(path[node][1])]
                 #32768 è il numero di priorità del pacchetto
                 controller.add_flow(dp, 32768, self.get_match(type, ofp_parser, ip_src, ip_dst), actions)
-
-
-
-
-
 
