@@ -16,7 +16,6 @@ import sys
 sys.path.append(".")
 print(os.getcwd())
 print(sys.path.__str__())
-from config import Config
 
 
 #                s2
@@ -49,6 +48,7 @@ def four_switches_network():
                   build=False,
                   ipBase='10.0.0.0/8', link=TCLink)
 
+    #Da sistemare i Config Files
     queue_lenght = Config.queue_lenght
     timeTotal = min_to_sec(Config.duration_iperf_per_load_level_minutes)
     controllerIP = '127.0.0.1'
@@ -119,5 +119,4 @@ def four_switches_network():
 
 if __name__ == '__main__':
     setLogLevel('info')
-
-four_switches_network()
+    four_switches_network()

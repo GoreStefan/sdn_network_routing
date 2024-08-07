@@ -85,3 +85,10 @@ class Topology(Topo):
                     topology[sw] = switches[s]
                     topology[sw][s] = random.choice(link_configs)
 
+        """
+        FOR DEBUGGING PURPOSE
+        """
+        for sw, links in topology.items():
+            print(f"Switch {sw} connections:")
+            for link, config in links.items():
+                print(f"  to {link}: {config}")
