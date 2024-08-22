@@ -74,14 +74,20 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         self.chosen_path_per_flow = {}
 
         #STATISTICS DICTIONARIES
+        self.data_map = {}
+        #-->LANTECY STATS
+        self.latency_dict = {}
+        #-->BANDWIDTH STATS
         self.temp_bw_map_ports = {}
         self.temp_bw_map_flows = {}
-        self.data_map = {}
-        self.latency_dict = {}
+        self.bandwith_port_dict = {}
+        self.bandwith_flow_dict = {}
+
+        #-->RTT STATS
         self.last_arrived_package = {}
         self.rtt_portStats_to_dpid = {}
         self.rtt_stats_sent = {}
-        
+
         #CONFIG VAR
         self.waitTillStart = 5
 
