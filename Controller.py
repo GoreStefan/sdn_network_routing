@@ -1,5 +1,6 @@
 from ryu.base import app_manager
 from ryu.controller import ofp_event
+from ryu.controller import dpset  
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
@@ -12,6 +13,10 @@ from ryu.app.wsgi import Response
 from ryu.app.wsgi import route
 from ryu.app.wsgi import WSGIApplication
 
+from ryu.topology import event                                          
+from ryu.topology import switches                                       
+
+from pprint import pprint
 from enum import Enum
 from collections import defaultdict
 
@@ -44,8 +49,10 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
     
     def __init__(self, *args, **kwargs):
         super(ControllerMain, self).__init__(*args, **kwargs)
-
         MAX_PATH = 100 
+
+        #FLAGS AND SEMAPHORS
+        self.latency_measurement_flag = False
 
         #DICTIONARY ARP
         self.arp_table = {}
@@ -77,7 +84,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         
         #CONFIG VAR
         self.waitTillStart = 5
-        
+
+        #NEW THREAD
         hub.spawn(self.checking_update)
 
     def checking_update(self):
@@ -87,14 +95,15 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         THIRD STATE: 
         """
         
+        """
         while not self.latency_measurement_flag:
             self.logger.info("Waiting for latency measurement")
             hub.sleep(1)
-        hub.sleep(5)
-
+        hub.sleep(5)    
+        """
         while True: 
             self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
-            hub.sleep(5)
+            hub.sleep(2)
 
     def convert_data_map_to_dict(self, dataMap, choice):
         """
@@ -112,11 +121,12 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 dictBuild[key1][key2] = dataMap[key1][key2][choice][-1]['value']
         return dictBuild
         
+    """
     @set_ev_cls(event.EventHostAdd)    
     def _event_host_add_handler(self, ev):                                                                              
         msg = ev.host.to_dict()
         print_with_timestamp("Nuovo host aggiunto")    
-
+    """
 
     """
     @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
@@ -124,11 +134,14 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         print("======== PORT MODIFIED =======")
     """
 
+    """
     @set_ev_cls(event.EventHostAdd)
     def _event_host_add_handler(self, ev):
-        """Host add event handler"""
+        #Host add event handler
         host = ev.host.to_dict()  # Get host details as a dictionary
         print_with_timestamp(f"Host details: {host}")  # Print the whole dictionary to inspect its structure
+    """
+        
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -167,13 +180,53 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         self.dpidToDatapath[dpid] = datapath
         self.last_arrived_package[dpid] = {}
 
-
         # Sending Echo packet to monitor flow and port stats
         hub.spawn(self.monitor_sw_controller_latency, datapath)
         # Starting flooding thread for flooding monitoring package
         hub.spawn(self.monitor_latency, datapath, ofproto)
 
+    """
+    @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
+    def port_modify_handler(self, ev):
+        print("PORT MODIFY")
+        port = ev.port
+        dp = ev.dp
+        port_no = port.port_no
 
+        #removing host from already_routed
+        self.already_routed = [
+            (h1, h2) for (h1, h2) in self.already_routed
+            if not ((h1.dpid == dp and h1.port == port_no) or
+                (h2.dpid == dp and h2.port == port_no))
+        ]
+
+        #To find the mac given (dpid, port_no)
+        for mac, (dpid, port) in self.hosts.items():
+            if dpid == dp and port == port_no:
+                found_mac = mac
+                break  # Exit the loop once the MAC address is foun
+
+        #Given the arp table, to remove a entry, given the mac use the following code
+        ip_to_remove = None
+        for ip, mac in self.arp_table.items():
+            if mac == found_mac:
+                ip_to_remove = ip
+                break  # Exit the loop once the IP address is found
+
+        # Remove the entry if the IP address was found
+        if ip_to_remove:
+            del self.arp_table[ip_to_remove]
+
+        #now i can retrive witch host was
+        keys_to_remove = [mac for mac, (dpid, port) in self.hosts.items() if dpid == target_dpid and port == target_port]
+
+        # Remove the hosts
+        for key in keys_to_remove:
+            del self.hosts[key]
+
+        print("QUI")
+    """
+    
     def monitor_latency(self, datapath, ofproto):
         """
         monitor_latency will run while true. 
@@ -238,7 +291,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         send_flow_stats_request = flow-level statistics
 
         """
-        hub.sleep(0.5 + self.waitTillStart)
+        hub.sleep(1)
         # self.waitTillStart += 0.25
         iterator = 0
         while True:
@@ -250,7 +303,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             else:
                 self.send_flow_stats_request(datapath)
             iterator += 1
-            hub.sleep(interval_controller_switch_latency)
+            hub.sleep(1)
 
     def send_port_stats_request(self, datapath):
         """
@@ -499,7 +552,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 h1 = self.hosts[src_mac]
                 h2 = self.hosts[dst_mac]
                 if (h1, h2) not in self.already_routed:
-                    self.routing(h1, h2, src_ip, dst_ip)
+                    #same here
+                    hub.spawn(self.routing, h1, h2, src_ip, dst_ip, 'arp')
                 return
             elif arp_pkt.opcode == arp.ARP_REQUEST:
                 if dst_ip in self.arp_table:
@@ -511,7 +565,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                         dst_mac = self.arp_table[dst_ip]
                         h1 = self.hosts[src_mac]
                         h2 = self.hosts[dst_mac]
-                        self.routing(h1, h2, src_ip, dst_ip)
+                        #we cannot put a wainting here, so we need to spawn a thread
+                        hub.spawn(self.routing, h1, h2, src_ip, dst_ip, 'arp')
                         self.logger.info("Calc needed for DFS routing between h1: {} and h2: {}".format(src_ip, dst_ip))
                         self.already_routed.append((h1, h2))
                     return
@@ -542,10 +597,10 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 h1 = self.hosts[src_mac]
                 h2 = self.hosts[dst_mac]
                 if (h1, h2) not in self.already_routed_ip:
-                    self.routing(h1, h2, src_ip, dst_ip)
+                    self.routing(h1, h2, src_ip, dst_ip, 'ipv4')
                     self.already_routed_ip.append((h1, h2))
 
-    def routing(self, h1, h2, src_ip, dst_ip):
+    def routing(self, h1, h2, src_ip, dst_ip, typep):
         """
         Routing of ARP requests
         :param h1:  derived from h1 = self.hosts[src_mac] 
@@ -553,13 +608,23 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         :param src_ip:  it's the source's ip
         :param dst_ip:
         """
+        #should i put here hun or time
+        hub.sleep(5)
         #where h[0] and h[1] are the dpid of the switches
         optimal_path = self.get_optimal_path(self.latency_dict, h1[0], h2[0])
-        self.install_path(optimal_path, h1[1], h2[1], src_ip, dst_ip)
+
+        if src_ip not in self.flow_path_cost:
+            self.flow_path_cost[src_ip] = {}
+        
+        self.flow_path_cost[src_ip][dst_ip] = (optimal_path, self.get_path_cost(self.latency_dict, path_optimal))
+        pprint(self.flow_path_cost)
+        
+        self.install_path(optimal_path, h1[1], h2[1], src_ip, dst_ip, typep)
+        
         #TESTING. 
         #self.chosen_path_per_flow[src_ip][dst_ip] = {optimal_path, self.get_path_cost(optimal_path)}
 
-    def get_optimal_path (self, latency_dict, src, dst):
+    def get_optimal_path (self, latency_dict, src, dst, typep):
         #get all paths from a src ip to dst ip 
         paths = self.get_paths(latency_dict, src, dst)
         best_path = sorted(paths, key=lambda x: self.get_path_cost(latency_dict, x))[0]
@@ -623,7 +688,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             )
             return match_arp
     
-    def install_path(self, chosenPath, first_port, last_port, ip_src, ip_dst):
+    def install_path(self, chosenPath, first_port, last_port, ip_src, ip_dst, type):
         """
         Given the best_path to we need to insert into the OpenFlow 
         tables the entrys to create the path from the src ip to 
@@ -655,7 +720,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
             actions = [ofp_parser.OFPActionOutput(path[node][1])]
             #32768 è il numero di priorità del pacchetto
-            self.add_flow(dp, 32768, self.get_match(type, ofp_parser, ip_src, ip_dst), actions)
+            self.add_flow(dp, self.get_match(type), self.get_match(type, ofp_parser, ip_src, ip_dst), actions)
 
 
     # Add the ports that connects the switches for all paths
@@ -834,18 +899,19 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         datapath.send_msg(mod)
 
 
-    def print_with_timestamp(message):
-        """
-        Prints a message with the current time in minutes, seconds, and milliseconds.
-        :param message: The message to print
-        """
-        # Get the current time
-        current_time = time.time()
+def print_with_timestamp(message):
+    """
+    Prints a message with the current time in minutes, seconds, and milliseconds.
+    :param message: The message to print
+    """
+    # Get the current time
+    current_time = time.time()
 
-        # Calculate minutes, seconds, and milliseconds
-        minutes = int(current_time // 60) % 60
-        seconds = int(current_time % 60)
-        milliseconds = int((current_time % 1) * 1000)
+    # Calculate minutes, seconds, and milliseconds
+    minutes = int(current_time // 60) % 60
+    seconds = int(current_time % 60)
+    milliseconds = int((current_time % 1) * 1000)
 
-        # Print the message with the timestamp
-        print(f"{minutes:02}:{seconds:02}.{milliseconds:03} - {message}")
+    # Print the message with the timestamp
+    print(f"{minutes:02}:{seconds:02}.{milliseconds:03} - {message}")
+

@@ -100,6 +100,23 @@ def migrate_host(net, host_name, old_switch_name, new_switch_name):
     print(f"Host {host_name} has been migrated from switch {old_switch_name} to switch {new_switch_name}.")
     print_topology(net)
 
+def link_up(net, switch_name, host_name):
+    switch = net.get(switch_name)
+    host = net.get(host_name)
+    link = switch.connectionsTo(host)
+    intf_switch, intf_host = link[0]
+    intf_switch.config(**{'status':'up'})
+    intf_host.config(**{'status':'up'})
+    print("link up")
+
+def link_down(net, switch_name, host_name):
+    switch = net.get(switch_name)
+    host = net.get(host_name)
+    link = switch.connectionsTo(host)
+    intf_switch, intf_host = link[0]
+    intf_switch.config(**{'status':'down'})
+    intf_host.config(**{'status':'down'})
+    print("link down")
 
 def print_topology(net):
     """
@@ -132,8 +149,8 @@ def four_switches_network():
                   ipBase='10.0.0.0/8', link=TCLink)
 
     #Da sistemare i Config Files
-    queue_lenght = Config.queue_lenght
-    timeTotal = min_to_sec(Config.duration_iperf_per_load_level_minutes)
+    queue_lenght = 10
+    timeTotal = min_to_sec(10)
     controllerIP = '127.0.0.1'
     info('*** Adding controller\n')
     c0 = net.addController(name='c0',
