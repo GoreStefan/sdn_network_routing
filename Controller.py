@@ -697,7 +697,14 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             )
             return match_arp
     
-    def install_path(self, chosenPath, first_port, last_port, ip_src, ip_dst, type):
+    def get_priority(self, type):
+        if type == 'ipv4':
+            return 1
+        if type == 'arp':
+            return 32768
+        return 32768
+
+    def install_path(self, chosenPath, first_port, last_port, ip_src, ip_dst, type_packet):
         """
         Given the best_path to we need to insert into the OpenFlow 
         tables the entrys to create the path from the src ip to 
@@ -730,7 +737,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
             actions = [ofp_parser.OFPActionOutput(path[node][1])]
             #32768 è il numero di priorità del pacchetto
-            self.add_flow(dp, self.get_match(type), self.get_match(type, ofp_parser, ip_src, ip_dst), actions)
+            self.add_flow(dp, self.get_priority(type_packet), self.get_match(type_packet, ofp_parser, ip_src, ip_dst), actions)
 
 
     # Add the ports that connects the switches for all paths
