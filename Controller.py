@@ -21,98 +21,114 @@ import copy
 import json
 import sys
 
+import logging
+logging.basicConfig(level=logging.DEBUG)  # Default level for root logg>
+
+# Create individual loggers for different categories
+logger_statistics = logging.getLogger('statistics')
+logger_arp = logging.getLogger('arp')
+
+#setting level of logger
+logger_statistics.setLevel(logging.DEBUG)
+logger_arp.setLevel(logging.DEBUG)
+
 sys.path.append("..")
 
 #TO DO: creating a JSON configuration file
 interval_update_latency = 10 
 interval_controller_switch_latency = 10 
+wait_till_Start = 4
 
 class ControllerMain(simple_switch_13.SimpleSwitch13):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
     
     def __init__(self, *args, **kwargs):
         super(ControllerMain, self).__init__(*args, **kwargs)
-        
+
         MAX_PATH = 100 
 
+        #DICTIONARY ARP
+        self.arp_table = {}
+        self.routing_arp = {}
+
+        #DICTIONARY ROUTING
+        self.already_routed = []
+        self.already_routed_ip = []
+
+        #DICTIONARIES TOPOLOGY
         self.mac_to_port = {} 
-        """
-        In the arp table we will have the following association: 
-        Association ip = mac
-        arp_table = 
-            { 
-            10.0.0.24 : 00.00.00.01
-            11.0.0.24 : 00.00.00.02
-            ip : mac
-            }
-        """
-        self.arp_table = {}
-        
-        """
-        dic = {id_forward = paths}
-        dove: 
-            id_forward   <- build_connection_between_hosts_id
-            paths        <- get_optimal_path
-        """
-        self.paths_per_flow = {} 
-        """
-        """
-        self.chosen_path_per_flow = {}
-
-        self.datapath_list = {}
-        self.arp_table = {}
         self.swithes = []
-
-        """
-        Data structure with following example structure: 
-        self.hosts = {
-            "00:1A:2B:3C:4D:5E": ("dpid_1", 1), 
-            "11:22:33:44:55:66": ("dpid_2", 2),
-            }
-        
-        The association is the following:
-
-        mac --> (id switch, port number)
-        """
+        self.datapath_list = {}
         self.hosts = {}
-
-
-        self.data_map = {}
-        """
-        Example of how data_map dictonary will be structured.
-
-        self.data_map = {
-            1: {  # dpid_rec
-                2212: {  # dpid_sent
-                    'in_port': 21,
-                    'bw': [],
-                    'latencyRTT': [
-                        {'timestamp': 1627356123.123, 'value': 15.6},  # Example latencyRTT data
-                        {'timestamp': 1627356187.456, 'value': 16.2}
-                    ]
-                    }
-                }
-        }
-        """
-
-        self.latency_dict = {}
-        """
-        Data la funzione convert_data_map_to_dict possiamo convertire 
-        data_map in latenvy dict la quale avrà quest'ultima forma
-
-        latency_dict = {
-                    1: {    #dpif_rec
-                        2212:{      #dpic_sent
-                            15.6            #last value latencyRTT or bw
-                        }
-                    }    
-        }
-        """
-
-        #ALL DATA STRUCTURE WE NEED 
-        self.last_arrived_package = {}
         self.dpidToDatapath = {}
 
+        #DICTIONARY FLOW 
+        self.paths_per_flow = {} 
+        self.chosen_path_per_flow = {}
+
+        #STATISTICS DICTIONARIES
+        self.temp_bw_map_ports = {}
+        self.temp_bw_map_flows = {}
+        self.data_map = {}
+        self.latency_dict = {}
+        self.last_arrived_package = {}
+        self.rtt_portStats_to_dpid = {}
+        self.rtt_stats_sent = {}
+        
+        #CONFIG VAR
+        self.waitTillStart = 5
+        
+        hub.spawn(self.checking_update)
+
+    def checking_update(self):
+        """
+        FIRST STATE : waiting the FLAG controlled by monitor latency
+        SECOND STATE: creating latency dict
+        THIRD STATE: 
+        """
+        
+        while not self.latency_measurement_flag:
+            self.logger.info("Waiting for latency measurement")
+            hub.sleep(1)
+        hub.sleep(5)
+
+        while True: 
+            self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
+            hub.sleep(5)
+
+    def convert_data_map_to_dict(self, dataMap, choice):
+        """
+        Creates dictionary of data_map
+        :param dataMap:
+        :param choice:
+        :return:
+        """
+        dictBuild = {}
+        for key1 in dataMap.keys():
+            dictBuild[key1] = {}
+            for key2 in dataMap[key1].keys():
+                #if key2 not in dictBuild[key1].keys():
+                #    dictBuild[key1] = {}
+                dictBuild[key1][key2] = dataMap[key1][key2][choice][-1]['value']
+        return dictBuild
+        
+    @set_ev_cls(event.EventHostAdd)    
+    def _event_host_add_handler(self, ev):                                                                              
+        msg = ev.host.to_dict()
+        print_with_timestamp("Nuovo host aggiunto")    
+
+
+    """
+    @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
+    def port_modify_handler(self, ev):
+        print("======== PORT MODIFIED =======")
+    """
+
+    @set_ev_cls(event.EventHostAdd)
+    def _event_host_add_handler(self, ev):
+        """Host add event handler"""
+        host = ev.host.to_dict()  # Get host details as a dictionary
+        print_with_timestamp(f"Host details: {host}")  # Print the whole dictionary to inspect its structure
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -169,10 +185,10 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         the data inside the packet will be the time when it was build 
         and sent to the switch. 
         """
-        #hub.sleep(self.waitTillStart + 5)
+        hub.sleep(5)
         #self.waitTillStart += 0.1
         print("MONITORING LATENCY STARTED dpid: {}".format(datapath.id))
-        #self.latency_measurement_flag = True
+        self.latency_measurement_flag = True
         while True:
             #preparing the OverFlow message
             ofp = datapath.ofproto
@@ -473,6 +489,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         The interessted Host will respond with an ARP_REPLAY
         """
         if arp_pkt:
+            print("Handling ARP packet")
             # print dpid, pkt
             src_ip = arp_pkt.src_ip
             dst_ip = arp_pkt.dst_ip
@@ -482,7 +499,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 h1 = self.hosts[src_mac]
                 h2 = self.hosts[dst_mac]
                 if (h1, h2) not in self.already_routed:
-                    self.routing_arp(h1, h2, src_ip, dst_ip)
+                    self.routing(h1, h2, src_ip, dst_ip)
                 return
             elif arp_pkt.opcode == arp.ARP_REQUEST:
                 if dst_ip in self.arp_table:
@@ -537,8 +554,10 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         :param dst_ip:
         """
         #where h[0] and h[1] are the dpid of the switches
-        path_optimal, paths = self.get_optimal_path(self.latency_dict, h1[0], h2[0])
-        self.install_path(self, path_optimal, h1[1], h2[1], src_ip, dst_ip, 'arp')
+        optimal_path = self.get_optimal_path(self.latency_dict, h1[0], h2[0])
+        self.install_path(optimal_path, h1[1], h2[1], src_ip, dst_ip)
+        #TESTING. 
+        #self.chosen_path_per_flow[src_ip][dst_ip] = {optimal_path, self.get_path_cost(optimal_path)}
 
     def get_optimal_path (self, latency_dict, src, dst):
         #get all paths from a src ip to dst ip 
@@ -604,7 +623,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             )
             return match_arp
     
-    def install_path(self, controller, chosenPath, first_port, last_port, ip_src, ip_dst, type):
+    def install_path(self, chosenPath, first_port, last_port, ip_src, ip_dst):
         """
         Given the best_path to we need to insert into the OpenFlow 
         tables the entrys to create the path from the src ip to 
@@ -617,7 +636,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         """
 
         #here we add to the path also the ports that will handles the flow
-        path = self.add_ports_to_path(controller, chosenPath, first_port, last_port)
+        path = self.add_ports_to_path(chosenPath, first_port, last_port)
         #switches_in_paths = set().union(*chosenPath)
 
         """
@@ -629,14 +648,204 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         """
         #da verificare
         #for node in chosenPath:
-        for node in path.key(): 
-            dp = controller.dpidToDatapath[node]
+        for node in path.keys(): 
+            dp = self.dpidToDatapath[node]
             ofp = dp.ofproto
             ofp_parser = dp.ofproto_parser
-            actions = []
-            in_port = path[node][0]
 
             actions = [ofp_parser.OFPActionOutput(path[node][1])]
             #32768 è il numero di priorità del pacchetto
-            controller.add_flow(dp, 32768, self.get_match(type, ofp_parser, ip_src, ip_dst), actions)
+            self.add_flow(dp, 32768, self.get_match(type, ofp_parser, ip_src, ip_dst), actions)
 
+
+    # Add the ports that connects the switches for all paths
+    def add_ports_to_path(self, path, first_port, last_port):
+        p = {}
+        in_port = first_port
+        for s1, s2 in zip(path[:-1], path[1:]):
+            out_port = self.data_map[s1][s2]['in_port']
+            p[s1] = (in_port, out_port)
+            in_port = self.data_map[s2][s1]['in_port']
+        p[path[-1]] = (in_port, last_port)
+        return p
+
+    # prev: self, src_ip, dst_ip, newPath
+    def reroute(self, src_ip, dst_ip, new_path):
+        """
+        rerouting the flow on a different path
+        :param id_forward: flow id
+        :param new_path: new pathm the flow should be routed on
+        """
+        chosenflow_prev = copy.deepcopy(self.chosen_path_per_flow[src_ip][dst_ip])
+        self.chosen_path_per_flow[src_ip][dst_ip] = new_path
+
+        # first and last are same
+        i = 0
+        flow_add_list = []
+        flow_mod_list = []
+        flow_delete_list = []
+
+        difference_set = set(chosenflow_prev).difference(new_path)
+        # check if things deleted
+        if len(difference_set) > 0:
+            flow_delete_list = list(difference_set)
+
+        for switch in new_path:
+            if switch in chosenflow_prev:
+                # check prev
+                index_prev = chosenflow_prev.index(switch)
+                if i > 0:
+                    if new_path[i - 1] == chosenflow_prev[index_prev - 1]:
+                        i += 1
+                        continue
+                    # have to change index before
+                    else:
+                        if (new_path[i - 1] not in flow_add_list) \
+                                and ((new_path[i - 1] not in flow_delete_list)
+                                     and chosenflow_prev[index_prev] not in flow_delete_list):
+                            print("Not same: {}".format(switch))
+                            flow_mod_list.append(new_path[i - 1])
+            else:
+                flow_add_list.append(switch)
+                index_prev = new_path.index(switch)
+                # check here ob schon in add-list
+                flow_mod_list.append(new_path[index_prev - 1])
+            i += 1
+        for j in range(0, len(flow_delete_list), 1):
+            switch_old_index = chosenflow_prev.index(flow_delete_list[j])
+            switch_old_index_prev = switch_old_index - 1
+            if chosenflow_prev[switch_old_index_prev] not in flow_delete_list:
+                flow_mod_list.append(chosenflow_prev[switch_old_index_prev])
+            j += 1
+        # delete duplicates from modlist
+        flow_mod_list = list(dict.fromkeys(flow_mod_list))
+        flow_mod_list.reverse()
+        # first addFlows
+        for switch in flow_add_list:
+            # get index of next switch
+            index = new_path.index(switch)
+            next_index = index + 1
+            if next_index < len(new_path):
+                following_switch = new_path[next_index]
+                self.add_flow_specific_switch(switch, src_ip, dst_ip,
+                                              self.data_map[switch][following_switch]['in_port'])#output port
+        hub.sleep(0.1)
+        # second: mod flows
+        for switch in flow_mod_list:
+            index = new_path.index(switch)
+            next_index = index + 1
+            if next_index < len(new_path):
+                following_switch = new_path[next_index]
+                self.mod_flow_specific_switch(switch, src_ip, dst_ip,
+                                              self.data_map[switch][following_switch]['in_port'])#output port
+        # third: delete flows
+        for switch in flow_delete_list:
+            # clean up bw flow list
+            try:
+                self.bandwith_flow_dict[switch][src_ip].pop(dst_ip, None)
+            except KeyError:
+                print("Key {} not found".format(dst_ip))
+            self.del_flow_specific_switch(switch, src_ip, dst_ip)
+
+    def add_flow_specific_switch(self, switch, ip_src, ip_dst, out_port):
+        dp = self.dpidToDatapath[switch]
+        ofp_parser = dp.ofproto_parser
+        actions = [ofp_parser.OFPActionOutput(out_port)]
+        match_ip = ofp_parser.OFPMatch(
+            eth_type=0x0800,
+            ipv4_src=ip_src,
+            ipv4_dst=ip_dst
+        )
+        self.add_flow(dp, 1, match_ip, actions)
+
+    def mod_flow_specific_switch(self, switch, ip_src, ip_dst, out_port):
+        dp = self.dpidToDatapath[switch]
+        ofp_parser = dp.ofproto_parser
+        actions = [ofp_parser.OFPActionOutput(out_port)]
+        match_ip = ofp_parser.OFPMatch(
+            eth_type=0x0800,
+            ipv4_src=ip_src,
+            ipv4_dst=ip_dst
+        )
+        self.mod_flow(dp, 1, match_ip, actions)
+
+    def del_flow_specific_switch(self, switch, ip_src, ip_dst):
+        dp = self.dpidToDatapath[switch]
+        ofp_parser = dp.ofproto_parser
+        match_ip = ofp_parser.OFPMatch(
+            eth_type=0x0800,
+            ipv4_src=ip_src,
+            ipv4_dst=ip_dst
+        )
+        self.del_flow(dp, match_ip)
+
+
+    def add_flow(self, datapath, priority, match, actions):
+        """
+        Add flow entry
+        :param datapath:
+        :param priority:
+        :param match:
+        :param actions:
+        """
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        # construct flow_mod message and send it.
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                             actions)]
+        mod = parser.OFPFlowMod(datapath=datapath,
+                                flags=ofproto.OFPFC_ADD,
+                                priority=priority,
+                                match=match, instructions=inst)
+        datapath.send_msg(mod)
+
+    def mod_flow(self, datapath, priority, match, actions):
+        """
+        Modify flow entry
+        :param datapath:
+        :param priority:
+        :param match:
+        :param actions:
+        """
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        # construct flow_mod message and send it.
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                             actions)]
+        mod = parser.OFPFlowMod(datapath=datapath, flags=ofproto.OFPFC_MODIFY, priority=priority,
+                                match=match, instructions=inst)
+        datapath.send_msg(mod)
+
+    def del_flow(self, datapath, match):
+        """
+        Delete flow entry
+        :param datapath:
+        :param match:
+        """
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        mod = parser.OFPFlowMod(datapath=datapath,
+                                command=ofproto.OFPFC_DELETE,
+                                out_port=ofproto.OFPP_ANY,
+                                out_group=ofproto.OFPG_ANY,
+                                match=match)
+        datapath.send_msg(mod)
+
+
+    def print_with_timestamp(message):
+        """
+        Prints a message with the current time in minutes, seconds, and milliseconds.
+        :param message: The message to print
+        """
+        # Get the current time
+        current_time = time.time()
+
+        # Calculate minutes, seconds, and milliseconds
+        minutes = int(current_time // 60) % 60
+        seconds = int(current_time % 60)
+        milliseconds = int((current_time % 1) * 1000)
+
+        # Print the message with the timestamp
+        print(f"{minutes:02}:{seconds:02}.{milliseconds:03} - {message}")

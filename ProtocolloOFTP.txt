@@ -46,3 +46,129 @@ EV.MSG.BODY ESEMPIO
     }
 ]
 
+
+
+        """
+        In the arp table we will have the following association: 
+        Association ip = mac
+        arp_table = 
+            { 
+            10.0.0.24 : 00.00.00.01
+            11.0.0.24 : 00.00.00.02
+            ip : mac
+            }
+        """
+
+        
+        """
+        dic = {id_forward = paths}
+        dove: 
+            id_forward   <- build_connection_between_hosts_id
+            paths        <- get_optimal_path
+        """
+        
+        """
+        """
+       
+
+    
+        
+
+
+        """
+        Data structure with following example structure: 
+        self.hosts = {
+            "00:1A:2B:3C:4D:5E": ("dpid_1", 1), 
+            "11:22:33:44:55:66": ("dpid_2", 2),
+            }
+        
+        The association is the following:
+
+        mac --> (id switch, port number)
+        """
+        
+	Given this dictionary, i want delete a particular (dpid, port_no)
+	i can use this functin
+
+	# Identify the keys to remove
+	keys_to_remove = [mac for mac, (dpid, port) in self.hosts.items() 
+				if dpid == target_dpid and port == target_port]
+
+	# Remove the identified keys
+	for key in keys_to_remove:
+    		del self.hosts[key]
+
+
+        
+        """
+        Example of how data_map dictonary will be structured.
+
+        self.data_map = {
+            1: {  # dpid_rec
+                2212: {  # dpid_sent
+                    'in_port': 21,
+                    'bw': [],
+                    'latencyRTT': [
+                        {'timestamp': 1627356123.123, 'value': 15.6},  # Example latencyRTT data
+                        {'timestamp': 1627356187.456, 'value': 16.2}
+                    ]
+                    }
+                }
+        }
+        """
+
+        
+        """
+        Data la funzione convert_data_map_to_dict possiamo convertire 
+        data_map in latenvy dict la quale avrà quest'ultima forma
+
+        latency_dict = {
+                    1: {    #dpif_rec
+                        2212:{      #dpic_sent
+                            15.6            #last value latencyRTT or bw
+                        }
+                    }    
+        }
+        """
+
+
+
+already_routed = [
+    (Host(dpid="dpid1", port=1), Host(dpid="dpid2", port=2)),
+    (Host(dpid="dpid3", port=3), Host(dpid="dpid4", port=4)),
+    (Host(dpid="dpid2", port=2), Host(dpid="dpid3", port=3)),
+]
+
+
+if i want to filter already_routed based on (dpid, port) i cn use the following function: 
+
+already_routed = [
+    (h1, h2) for (h1, h2) in already_routed
+    if not ((h1.dpid == target_dpid and h1.port == target_port) or
+            (h2.dpid == target_dpid and h2.port == target_port))
+]
+
+
+
+
+To find the mac given (dpid, port_no)
+for mac, (dpid, port) in self.hosts.items():
+    if dpid == target_dpid and port == target_port:
+        found_mac = mac
+        break  # Exit the loop once the MAC address is found
+
+
+
+Given the arp table, to remove a entry, given the mac use the following code
+ip_to_remove = None
+for ip, mac in arp_table.items():
+    if mac == target_mac:
+        ip_to_remove = ip
+        break  # Exit the loop once the IP address is found
+
+# Remove the entry if the IP address was found
+if ip_to_remove:
+    del arp_table[ip_to_remove]
+
+
+
