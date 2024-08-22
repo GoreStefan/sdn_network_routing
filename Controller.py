@@ -61,6 +61,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         #DICTIONARY ROUTING
         self.already_routed = []
         self.already_routed_ip = []
+        self.flow_path_cost = {}
 
         #DICTIONARIES TOPOLOGY
         self.mac_to_port = {} 
@@ -109,7 +110,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         """
         while True: 
             self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
-            hub.sleep(2)
+            hub.sleep(1)
 
     def convert_data_map_to_dict(self, dataMap, choice):
         """
@@ -186,10 +187,13 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         self.dpidToDatapath[dpid] = datapath
         self.last_arrived_package[dpid] = {}
 
+        #LOGGING PRINTING
+        print_with_timestamp("{} switch is connecting".format(dpid))
         # Sending Echo packet to monitor flow and port stats
         hub.spawn(self.monitor_sw_controller_latency, datapath)
         # Starting flooding thread for flooding monitoring package
         hub.spawn(self.monitor_latency, datapath, ofproto)
+
 
     """
     @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
@@ -266,7 +270,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             req = ofp_parser.OFPPacketOut(datapath, ofproto.OFP_NO_BUFFER,
                                         ofproto.OFPP_CONTROLLER, actions, data)
             datapath.send_msg(req)
-            hub.sleep(interval_update_latency)
+            hub.sleep(0.5)
 
 
     #self.send_packet_out(datapath, ofproto.OFP_NO_BUFFER, ofproto.OFPP_CONTROLLER)
@@ -305,7 +309,6 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             # self.send_echo_request(datapath, data)
             if iterator % 2 == 0:
                 self.send_port_stats_request(datapath)
-                print("Sent")
             else:
                 self.send_flow_stats_request(datapath)
             iterator += 1
@@ -617,12 +620,12 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         #should i put here hun or time
         hub.sleep(5)
         #where h[0] and h[1] are the dpid of the switches
-        optimal_path = self.get_optimal_path(self.latency_dict, h1[0], h2[0])
+        optimal_path = self.get_optimal_path(self.latency_dict, h1[0], h2[0], typep)
 
         if src_ip not in self.flow_path_cost:
             self.flow_path_cost[src_ip] = {}
         
-        self.flow_path_cost[src_ip][dst_ip] = (optimal_path, self.get_path_cost(self.latency_dict, path_optimal))
+        self.flow_path_cost[src_ip][dst_ip] = (optimal_path, self.get_path_cost(self.latency_dict, optimal_path))
         pprint(self.flow_path_cost)
         
         self.install_path(optimal_path, h1[1], h2[1], src_ip, dst_ip, typep)
@@ -630,7 +633,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         #TESTING. 
         #self.chosen_path_per_flow[src_ip][dst_ip] = {optimal_path, self.get_path_cost(optimal_path)}
 
-    def get_optimal_path (self, latency_dict, src, dst, typep):
+    def get_optimal_path(self, latency_dict, src, dst, typep):
         #get all paths from a src ip to dst ip 
         paths = self.get_paths(latency_dict, src, dst)
         best_path = sorted(paths, key=lambda x: self.get_path_cost(latency_dict, x))[0]
@@ -705,6 +708,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         and last switches. 
 
         """
+        print("path installation ")
 
         #here we add to the path also the ports that will handles the flow
         path = self.add_ports_to_path(chosenPath, first_port, last_port)
