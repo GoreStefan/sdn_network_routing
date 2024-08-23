@@ -51,6 +51,12 @@ def resume_iperf(host):
     host.cmd('pkill -CONT iperf')
     print(f"Resumed iperf server on {host.name}")
 
+def terminate_iperf_on_host(host):
+    """
+    Terminates the iperf command running on a given Mininet host.
+    """
+    host.cmd("pkill -f iperf")   
+
 def min_to_sec(min):
     return min * 60
 
@@ -98,7 +104,6 @@ def migrate_host(net, host_name, old_switch_name, new_switch_name):
     # Add a new link between the host and the new switch
     print("fatto")
     print(f"Host {host_name} has been migrated from switch {old_switch_name} to switch {new_switch_name}.")
-    print_topology(net)
 
 
 def host_migration_3(net, old_switch, new_switch, host):
@@ -201,7 +206,8 @@ def four_switches_network():
                     burst=1000000)
     net.addLink(s4, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
                     burst=1000000)
-
+    """
+    #MORE ADVANCE NEEDING
     net.addLink(h1, s1)
     net.addLink(h2, s1)
     net.addLink(h3, s1)
@@ -211,6 +217,19 @@ def four_switches_network():
     net.addLink(h6, s3)
     #for migration
     net.addLink(h1, s2)
+    """
+    # Link hosts to switch s1
+    net.addLink(h1, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h2, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h3, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+
+    # Link hosts to switch s3
+    net.addLink(h4, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h5, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h6, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+
+    # Additional link from h1 to s2 for migration
+    #net.addLink(h1, s2, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
 
     info('*** Starting network\n')
     net.build()
@@ -234,15 +253,18 @@ def four_switches_network():
     #h1 is connected with bot s1 and s2, i want to shut 
     #h1.cmd('ifconfig h1-eth1 down')
 
-    time.sleep(5)
     #printing topology AFTER changing
     print_topology(net)
+    time.sleep(5)
+    terminate_iperf_on_host()
+
     
     #MIGRATION FUNCTIONS, CHOOSE ONE
     #migrate_host_2(net, 's1', 's2', 'h1')
-    #migrate_host(net, 'h1', 's1', 's2')
-    link_down(net, 's1', 'h1')
-    link_up(net, 's2', 'h1')
+    migrate_host(net, 'h1', 's1', 's2')
+    #link_down(net, 's1', 'h1')
+    #link_up(net, 's2', 'h1')
+    start_new_thread(startIperf, (h1, h4, 2.75, 5001, timeTotal))
 
     time.sleep(5)
     print_topology(net)
