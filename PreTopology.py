@@ -133,6 +133,7 @@ def link_down(net, switch_name, host_name):
     intf_host.config(**{'status':'down'})
     print("link down")
 
+#doesnt work
 def migrate_host_2(net, old_switch, new_switch, host_name):
     print("DETACHING PROCESS")
     switch1 = net.get(old_switch)
@@ -256,7 +257,7 @@ def four_switches_network():
     #printing topology AFTER changing
     print_topology(net)
     time.sleep(5)
-    terminate_iperf_on_host()
+    terminate_iperf_on_host(h1)
 
     
     #MIGRATION FUNCTIONS, CHOOSE ONE
@@ -264,14 +265,15 @@ def four_switches_network():
     migrate_host(net, 'h1', 's1', 's2')
     #link_down(net, 's1', 'h1')
     #link_up(net, 's2', 'h1')
+    print("starting again iperf h1 h4")
     start_new_thread(startIperf, (h1, h4, 2.75, 5001, timeTotal))
 
     time.sleep(5)
     print_topology(net)
-
+    CLI(net)
     time.sleep(10000)
     #stop_controller()
-    #CLI(net)
+    
     net.stop()
 
 

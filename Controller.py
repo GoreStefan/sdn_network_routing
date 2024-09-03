@@ -7,6 +7,7 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet, arp, ethernet, ipv4, ipv6, ether_types, icmp
 from ryu.lib import hub
 
+from ryu.topology.api import get_switch, get_link, get_host
 from ryu.app import simple_switch_13
 from ryu.app.wsgi import ControllerBase
 from ryu.app.wsgi import Response
@@ -56,6 +57,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
         #DICTIONARY ARP
         self.arp_table = {}
+        self.arp_table_mac_ip = {}
         self.routing_arp = {}
 
         #DICTIONARY ROUTING
@@ -135,12 +137,157 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         print_with_timestamp("Nuovo host aggiunto")    
     """
 
-    """
-    @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
-    def port_modify_handler(self, ev):
-        print("======== PORT MODIFIED =======")
-    """
+    
+    @set_ev_cls(ofp_event.EventOFPPortStateChange, MAIN_DISPATCHER)
+    def port_state_change_handler(self, ev):
+        """
+        Here we will implement the host migration and link failure
+        """
+        datapath = ev.datapath  #datapath of switch
+        ofp = datapath.ofproto
+        port_no = ev.port_no    # Port number where the change occurred
+        reason = ev.reason      # Reason for the port state change 
+        dpid = datapath.id      #verify if exists
 
+        if reason == ofp.OFPPR_DELETE and self.isLinkHostSwitch(dpid, port_no): 
+            #Migration part
+            #Indetify which host was removed/migrated thanks to the stored information inside the controller
+            for mac, host in self.hosts.items():
+                if host.port.dpid == datapath.id and host.port.port_no == port_no:
+                    host_migrated_mac = mac
+                    break
+            #Now that we have host's mac, i can retrive ip-mac
+            host_migrated_ip = self.arp_table_mac_ip[host_migrated_mac]
+            #now that we have ip we must retrive all switches in which is present this ip-mac combination
+            switches_used = self.find_switches_related_to_ip(self.chosen_path_per_flow, host_migrated_ip)
+            #now that we have the switches, we are going to delete all from them 
+            for s in switches_used:
+                self.delete_flows_by_ip(s, host_migrated_ip)
+            #IMPORTANT: delete from already_routed
+            switch_and_port = self.hosts[host_migrated_ip]
+            self.already_routed = [route for route in self.already_routed if switch_and_port not in route]
+            #IMPORTANT: delete from self.hosts the migrated hosts
+            del self.hosts[host_migrated_mac]
+            
+        if reason == ofp.OFPPR_ADD: 
+            #it means the new host was added to switch
+            #We can retrive the new host with RYU TOPOLOGY API
+            hosts = get_host(self, dpid=datapath.id)
+            for host in hosts:
+                if host.port.port_no == port_no:
+                    host_tmp = host
+            #we insert this new host inside the self.hosts 
+            self.hosts[host_tmp.mac] = (datapath.id, port_no)
+
+        if reason == ofp.OFPPR_DELETE and (not self.isLinkHostSwitch(dpid, port_no)): 
+            #Link failure part
+            #First we need to modify the data_map to cancel the communication between 2 switches
+            #1st step, get links
+            links = get_link(self)
+            #2nd step, find the neighbor using links, switch and port
+            for link in links:
+                src_dpid = link.src.dpid
+                src_port_no = link.src.port_no
+                dst_dpid = link.dst.dpid
+                dst_port_no = link.dst.port_no
+
+                if(src_dpid == datapath.id and src_port_no == port_no):
+                    neighborh_switch_dpid = dst_dpid
+                    neighborh_switch_port = dst_port_no
+            #now we can delete from data_map
+            self.delete_entry_by_keys(dpid, neighborh_switch_dpid)
+            #now we retrive all scr, dst ip (all flows) that go throug the switch
+            ips = self.find_ips_with_switch(dpid)
+            #now we iterate and reroute every ips pairs
+            self.reroute_paths(ips)
+
+    def reroute_paths(self, matching_ips):
+        for src_ip, dst_ip in matching_ips:
+            
+            src_node_id = self.hosts[self.arp_table[src_ip]][0]
+            dst_node_id = self.hosts[self.arp_table[dst_ip]][0]
+            
+            # Get the optimal path, assuming 'arp' is a parameter you use
+            new_optimal_path = self.get_optimal_path(self.latency_dict, src_node_id, dst_node_id, 'arp')
+            
+            # Call the reroute function
+            self.reroute(src_ip, dst_ip, new_optimal_path)
+
+    def find_ips_with_switch(self, switch):
+        """
+        The output example of this function: 
+        [('192.168.1.1', '192.168.1.2'), ('192.168.1.3', '192.168.1.4'), ('192.168.1.5', '192.168.1.6')]
+        """
+        result = []
+        for src_ip, dst_dict in self.chosen_path_per_flow.items():
+            for dst_ip, (path, cost) in dst_dict.items():
+                if switch in path:
+                    result.append((src_ip, dst_ip))
+        return result
+
+    def delete_entry_by_keys(self, target_switch, target_dpid_sent):
+            # Check if the target_switch (dpid_rec) exists in the data map
+            if target_switch in self.data_map:
+                dpid_sent_dict = self.data_map[target_switch]  # Get the dictionary for the specific switch
+
+                # Check if the target_dpid_sent exists under the specified switch
+                if target_dpid_sent in dpid_sent_dict:
+                    del dpid_sent_dict[target_dpid_sent]  # Delete the specific entry
+
+
+    def delete_flows_by_ip(self, datapath, ip):
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        match_src = parser.OFPMatch(ipv4_src=ip)
+        match_dst = parser.OFPMatch(ipv4_dst=ip)
+
+        # Delete flow where IP matches as source
+        self.remove_flow(datapath, match_src)
+        # Delete flow where IP matches as destination
+        self.remove_flow(datapath, match_dst)
+
+    def remove_flow(self, datapath, match):
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        mod = parser.OFPFlowMod(
+            datapath=datapath,
+            command=ofproto.OFPFC_DELETE,
+            out_port=ofproto.OFPP_ANY,
+            out_group=ofproto.OFPG_ANY,
+            match=match
+        )
+        datapath.send_msg(mod)
+
+
+    def find_switches_related_to_ip(self, chosen_path_per_flow, ip):
+        """
+        This function works specifically for chosen_path_per_flow
+        data structure. It retrives all switches that are using a 
+        given ip both as source and destination.
+        """
+        related_switches = set()
+
+        # Check for IP as a source
+        if ip in self.chosen_path_per_flow:
+            for dst_ip, (path, cost) in chosen_path_per_flow[ip].items():
+                related_switches.update(path)
+
+        # Check for IP as a destination
+        for src_ip, dst_dict in chosen_path_per_flow.items():
+            if ip in dst_dict:
+                path, cost = dst_dict[ip]
+                related_switches.update(path)
+
+        return related_switches
+
+    def isLinkHostSwitch(self, dpid, port_no):
+        links = get_link(self, None)
+        for l in links:
+            if (l.src.dpid == dpid and l.src.dpid == port_no) or (l.dst.dpid == dpid and l.dst.dpid == port_no):
+                return False
+        return True
     """
     @set_ev_cls(event.EventHostAdd)
     def _event_host_add_handler(self, ev):
@@ -148,7 +295,25 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         host = ev.host.to_dict()  # Get host details as a dictionary
         print_with_timestamp(f"Host details: {host}")  # Print the whole dictionary to inspect its structure
     """
-        
+    
+    @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
+    def port_modify_handler(self, ev):
+        """
+        When the host will migrate, it will pop up this function. 
+        The purpose of this function is to get all the 
+        switches in the topology. And to get the host of a 
+        particular switch. 
+        """
+        print("PORT MODIFY")
+        port = ev.port
+        dp = ev.dp
+        pprint(self.hosts)
+        switches = get_switch(self, None)
+        for l in switches:
+            print (" \t\t" + str(l))
+        hosts = get_host(self, dpid=dp.id)
+        for l in hosts:
+            print (" \t\t" + str(l))
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -558,6 +723,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
             if arp_pkt.opcode == arp.ARP_REPLY:
                 self.arp_table[src_ip] = src_mac
+                #Temporary
+                self.arp_table_mac_ip[src_mac] = src_ip
                 h1 = self.hosts[src_mac]
                 h2 = self.hosts[dst_mac]
                 if (h1, h2) not in self.already_routed:
@@ -571,6 +738,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                     h2 = self.hosts[dst_mac]
                     if (h1, h2) not in self.already_routed:
                         self.arp_table[src_ip] = src_mac
+                        self.arp_table_mac_ip[src_mac] = src_ip
                         dst_mac = self.arp_table[dst_ip]
                         h1 = self.hosts[src_mac]
                         h2 = self.hosts[dst_mac]
@@ -828,6 +996,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             except KeyError:
                 print("Key {} not found".format(dst_ip))
             self.del_flow_specific_switch(switch, src_ip, dst_ip)
+        
+        
 
     def add_flow_specific_switch(self, switch, ip_src, ip_dst, out_port):
         dp = self.dpidToDatapath[switch]
