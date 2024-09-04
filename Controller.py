@@ -149,7 +149,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         reason = ev.reason      # Reason for the port state change 
         dpid = datapath.id      #verify if exists
 
-        if reason == ofp.OFPPR_DELETE and self.isLinkHostSwitch(dpid, port_no): 
+        if reason == ofp.OFPPR_DELETE and (self.get_adjacent_switch(dpid, port_no) is not None): 
             #Migration part
             #Indetify which host was removed/migrated thanks to the stored information inside the controller
             for mac, host in self.hosts.items():
@@ -179,27 +179,43 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             #we insert this new host inside the self.hosts 
             self.hosts[host_tmp.mac] = (datapath.id, port_no)
 
-        if reason == ofp.OFPPR_DELETE and (not self.isLinkHostSwitch(dpid, port_no)): 
+        if reason == ofp.OFPPR_MODIFY and (self.get_adjacent_switch(dpid, port_no) is not None): 
             #Link failure part
             #First we need to modify the data_map to cancel the communication between 2 switches
-            #1st step, get links
-            links = get_link(self)
-            #2nd step, find the neighbor using links, switch and port
-            for link in links:
-                src_dpid = link.src.dpid
-                src_port_no = link.src.port_no
-                dst_dpid = link.dst.dpid
-                dst_port_no = link.dst.port_no
-
-                if(src_dpid == datapath.id and src_port_no == port_no):
-                    neighborh_switch_dpid = dst_dpid
-                    neighborh_switch_port = dst_port_no
+            #1st step, find the neighbor using data_map, switch and port
+            #indeed datamap have switch-switch-port
+            neighborh_switch_dpid = self.get_adjacent_switch(dpid, port_no)
             #now we can delete from data_map
             self.delete_entry_by_keys(dpid, neighborh_switch_dpid)
+            self.delete_entry_by_keys(neighborh_switch_dpid, dpid)
             #now we retrive all scr, dst ip (all flows) that go throug the switch
             ips = self.find_ips_with_switch(dpid)
+            #make sure that also latency_dict is updated
+            self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
             #now we iterate and reroute every ips pairs
             self.reroute_paths(ips)
+
+    def get_adjacent_switch(self, dpid, port_no):
+        """
+        Given a switch DPID and port number, return the adjacent switch>
+
+        :param dpid: The DPID of the switch.
+        :param port_no: The port number on the switch.
+        :return: The DPID of the adjacent switch, or None if not found.
+        """
+        # Check if the switch exists in the data_map
+        if dpid in self.data_map:
+            # Access the dictionary for the given DPID
+            ports_map = self.data_map[dpid]
+
+            # Iterate through the ports to find the matching port_no
+            for neighbor_dpid, port_info in ports_map.items():
+                if port_info['in_port'] == port_no:
+                    # Return the DPID of the adjacent switch
+                    return neighbor_dpid
+
+        # Return None if no adjacent switch is found
+        return None
 
     def reroute_paths(self, matching_ips):
         for src_ip, dst_ip in matching_ips:
@@ -285,7 +301,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
     def isLinkHostSwitch(self, dpid, port_no):
         links = get_link(self, None)
         for l in links:
-            if (l.src.dpid == dpid and l.src.dpid == port_no) or (l.dst.dpid == dpid and l.dst.dpid == port_no):
+            if (l.src.dpid == dpid and l.src.port_no == port_no) or (l.dst.dpid == dpid and l.dst.port_no == port_no):
                 return False
         return True
     """
@@ -358,49 +374,6 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         hub.spawn(self.monitor_sw_controller_latency, datapath)
         # Starting flooding thread for flooding monitoring package
         hub.spawn(self.monitor_latency, datapath, ofproto)
-
-
-    """
-    @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
-    def port_modify_handler(self, ev):
-        print("PORT MODIFY")
-        port = ev.port
-        dp = ev.dp
-        port_no = port.port_no
-
-        #removing host from already_routed
-        self.already_routed = [
-            (h1, h2) for (h1, h2) in self.already_routed
-            if not ((h1.dpid == dp and h1.port == port_no) or
-                (h2.dpid == dp and h2.port == port_no))
-        ]
-
-        #To find the mac given (dpid, port_no)
-        for mac, (dpid, port) in self.hosts.items():
-            if dpid == dp and port == port_no:
-                found_mac = mac
-                break  # Exit the loop once the MAC address is foun
-
-        #Given the arp table, to remove a entry, given the mac use the following code
-        ip_to_remove = None
-        for ip, mac in self.arp_table.items():
-            if mac == found_mac:
-                ip_to_remove = ip
-                break  # Exit the loop once the IP address is found
-
-        # Remove the entry if the IP address was found
-        if ip_to_remove:
-            del self.arp_table[ip_to_remove]
-
-        #now i can retrive witch host was
-        keys_to_remove = [mac for mac, (dpid, port) in self.hosts.items() if dpid == target_dpid and port == target_port]
-
-        # Remove the hosts
-        for key in keys_to_remove:
-            del self.hosts[key]
-
-        print("QUI")
-    """
     
     def monitor_latency(self, datapath, ofproto):
         """
@@ -505,12 +478,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         datapath.send_msg(req)
     
 
-
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def port_stats_reply_handler(self, ev):
-        """
-
-        """
         current_time = time.time()
         dpid_rec = ev.msg.datapath.id
         # updating switch controller latency
@@ -977,8 +946,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             next_index = index + 1
             if next_index < len(new_path):
                 following_switch = new_path[next_index]
-                self.add_flow_specific_switch(switch, src_ip, dst_ip,
-                                              self.data_map[switch][following_switch]['in_port'])#output port
+                self.add_flow_specific_switch(switch, src_ip=src_ip, dst_ip=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
+                self.add_flow_specific_switch(switch, arp_spa=src_ip, arp_tpa=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
         hub.sleep(0.1)
         # second: mod flows
         for switch in flow_mod_list:
@@ -986,8 +955,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             next_index = index + 1
             if next_index < len(new_path):
                 following_switch = new_path[next_index]
-                self.mod_flow_specific_switch(switch, src_ip, dst_ip,
-                                              self.data_map[switch][following_switch]['in_port'])#output port
+                self.mod_flow_specific_switch(switch, src_ip=src_ip, dst_ip=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
+                self.mod_flow_specific_switch(switch, arp_spa=src_ip, arp_tpa=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
         # third: delete flows
         for switch in flow_delete_list:
             # clean up bw flow list
@@ -995,62 +964,113 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 self.bandwith_flow_dict[switch][src_ip].pop(dst_ip, None)
             except KeyError:
                 print("Key {} not found".format(dst_ip))
-            self.del_flow_specific_switch(switch, src_ip, dst_ip)
+            self.del_flow_specific_switch(switch, src_ip=src_ip, dst_ip=dst_ip)
+            self.del_flow_specific_switch(switch, arp_spa=src_ip, arp_tpa=dst_ip)
+
         
         
 
-    def add_flow_specific_switch(self, switch, ip_src, ip_dst, out_port):
-        dp = self.dpidToDatapath[switch]
-        ofp_parser = dp.ofproto_parser
+    def add_flow_specific_switch(self, switch, ip_src=None, ip_dst=None, arp_spa=None, arp_tpa=None, out_port=None):
+        dp = self.dpidToDatapath[switch]  # Get the datapath object for the switch
+        ofp_parser = dp.ofproto_parser    # Get the OpenFlow parser
+
+        # Define the action to output the packet to the specified port
         actions = [ofp_parser.OFPActionOutput(out_port)]
-        match_ip = ofp_parser.OFPMatch(
-            eth_type=0x0800,
-            ipv4_src=ip_src,
-            ipv4_dst=ip_dst
-        )
-        self.add_flow(dp, 1, match_ip, actions)
 
-    def mod_flow_specific_switch(self, switch, ip_src, ip_dst, out_port):
-        dp = self.dpidToDatapath[switch]
-        ofp_parser = dp.ofproto_parser
+        if arp_spa and arp_tpa:
+            # Create a match for ARP packets with specific sender and target protocol addresses
+            match = ofp_parser.OFPMatch(
+                eth_type=0x0806,  # Ethernet type for ARP
+                arp_spa=arp_spa,  # ARP Sender Protocol Address (source IP in ARP)
+                arp_tpa=arp_tpa   # ARP Target Protocol Address (destination IP in ARP)
+            )
+            priority = 32768  # High priority for ARP flows
+        elif ip_src and ip_dst:
+            # Create a match for IP packets with specific source and destination IP addresses
+            match = ofp_parser.OFPMatch(
+                eth_type=0x0800,  # Ethernet type for IP
+                ipv4_src=ip_src,  # Source IP address
+                ipv4_dst=ip_dst   # Destination IP address
+            )
+            priority = 1  # Lower priority for IP flows
+        else:
+            # If neither ARP nor IP parameters are provided, raise an exception
+            raise ValueError("Either ARP or IP addresses must be provided.")
+
+        # Add the flow with the determined priority
+        self.add_flow(dp, priority, match, actions)
+
+
+    def mod_flow_specific_switch(self, switch, ip_src=None, ip_dst=None, out_port=None, arp_spa=None, arp_tpa=None):
+        dp = self.dpidToDatapath[switch]  # Get the datapath object for the switch
+        ofp_parser = dp.ofproto_parser    # Get the OpenFlow parser
+
+        # Ensure the out_port is provided
+        if out_port is None:
+            raise ValueError("out_port must be specified to modify the flow.")
+
+        # Define the action to output the packet to the specified port
         actions = [ofp_parser.OFPActionOutput(out_port)]
-        match_ip = ofp_parser.OFPMatch(
-            eth_type=0x0800,
-            ipv4_src=ip_src,
-            ipv4_dst=ip_dst
-        )
-        self.mod_flow(dp, 1, match_ip, actions)
 
-    def del_flow_specific_switch(self, switch, ip_src, ip_dst):
+        # Determine if it's an ARP or IP flow
+        if arp_spa and arp_tpa:
+            # Create a match for ARP packets
+            match = ofp_parser.OFPMatch(
+                eth_type=0x0806,  # Ethernet type for ARP
+                arp_spa=ip_src,   # ARP Sender Protocol Address
+                arp_tpa=ip_dst    # ARP Target Protocol Address
+            )
+            priority = 32768  # High priority for ARP flows
+        elif ip_src and ip_dst:
+            # Create a match for IP packets
+            match = ofp_parser.OFPMatch(
+                eth_type=0x0800,  # Ethernet type for IP
+                ipv4_src=ip_src,  # Source IP address
+                ipv4_dst=ip_dst   # Destination IP address
+            )
+            priority = 1  # Lower priority for IP flows
+        # Modify the flow with the determined priority, match, and actions
+        self.mod_flow(dp, priority, match, actions)
+
+
+    def del_flow_specific_switch(self, switch, ip_src=None, ip_dst=None, arp_spa=None, arp_tpa=None):
         dp = self.dpidToDatapath[switch]
         ofp_parser = dp.ofproto_parser
-        match_ip = ofp_parser.OFPMatch(
-            eth_type=0x0800,
-            ipv4_src=ip_src,
-            ipv4_dst=ip_dst
-        )
-        self.del_flow(dp, match_ip)
+
+        if arp_spa and arp_tpa:
+            match = ofp_parser.OFPMatch(
+                eth_type=0x0806,
+                arp_spa=ip_src,
+                arp_tpa=ip_dst
+            )
+        elif ip_src and ip_dst:
+            match = ofp_parser.OFPMatch(
+                eth_type=0x0800,
+                ipv4_src=ip_src,
+                ipv4_dst=ip_dst
+            )
+        self.del_flow(dp, match)
 
 
-    def add_flow(self, datapath, priority, match, actions):
-        """
-        Add flow entry
-        :param datapath:
-        :param priority:
-        :param match:
-        :param actions:
-        """
+    def add_flow(self, datapath, priority, match, actions, idle_timeout=0, hard_timeout=0):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
+        # Create an instruction to apply actions
+        instructions = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
 
-        # construct flow_mod message and send it.
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
-                                             actions)]
-        mod = parser.OFPFlowMod(datapath=datapath,
-                                flags=ofproto.OFPFC_ADD,
-                                priority=priority,
-                                match=match, instructions=inst)
-        datapath.send_msg(mod)
+        # Create the flow mod message
+        flow_mod = parser.OFPFlowMod(
+            datapath=datapath,
+            priority=priority,
+            command=ofproto.OFPFC_ADD,
+            idle_timeout=idle_timeout,  # Set the idle timeout
+            hard_timeout=hard_timeout,  # Set the hard timeout
+            match=match,
+            instructions=instructions
+        )
+
+        # Send the flow mod message to the switch
+        datapath.send_msg(flow_mod)
 
     def mod_flow(self, datapath, priority, match, actions):
         """
