@@ -260,10 +260,10 @@ def four_switches_network():
                            port=6633)
 
     info('*** Add switches\n')
-    s1 = net.addSwitch('s1', cls=OVSKernelSwitch)
-    s2 = net.addSwitch('s2', cls=OVSKernelSwitch)
-    s3 = net.addSwitch('s3', cls=OVSKernelSwitch)
-    s4 = net.addSwitch('s4', cls=OVSKernelSwitch)
+    s1 = net.addSwitch('s1')
+    s2 = net.addSwitch('s2')
+    s3 = net.addSwitch('s3')
+    s4 = net.addSwitch('s4')
 
     info('*** Add hosts\n')
     h1 = net.addHost('h1', cls=Host, ip='10.0.0.1', defaultRoute=None)
@@ -336,7 +336,7 @@ def four_switches_network():
     #MIGRATION FUNCTIONS, CHOOSE ONE
     
     h1, old = net.get('h1', 's1')
-    new = net[s2]
+    new = net['s2']
     hintf, sintf = moveHost(h1, old, new )
 
     time.sleep(5)
