@@ -98,18 +98,6 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         hub.spawn(self.checking_update)
 
     def checking_update(self):
-        """
-        FIRST STATE : waiting the FLAG controlled by monitor latency
-        SECOND STATE: creating latency dict
-        THIRD STATE: 
-        """
-        
-        """
-        while not self.latency_measurement_flag:
-            self.logger.info("Waiting for latency measurement")
-            hub.sleep(1)
-        hub.sleep(5)    
-        """
         while True: 
             self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
             hub.sleep(1)
@@ -129,15 +117,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 #    dictBuild[key1] = {}
                 dictBuild[key1][key2] = dataMap[key1][key2][choice][-1]['value']
         return dictBuild
-        
-    """
-    @set_ev_cls(event.EventHostAdd)    
-    def _event_host_add_handler(self, ev):                                                                              
-        msg = ev.host.to_dict()
-        print_with_timestamp("Nuovo host aggiunto")    
-    """
-
-    
+          
     @set_ev_cls(ofp_event.EventOFPPortStateChange, MAIN_DISPATCHER)
     def port_state_change_handler(self, ev):
         """
@@ -152,14 +132,14 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         if reason == ofp.OFPPR_DELETE and (self.get_adjacent_switch(dpid, port_no) is not None): 
             #Migration part
             #Indetify which host was removed/migrated thanks to the stored information inside the controller
-            for mac, host in self.hosts.items():
-                if host.port.dpid == datapath.id and host.port.port_no == port_no:
+            for mac, (sw_id, port) in self.hosts.items():
+                if sw_id == dpid and port == port_no:
                     host_migrated_mac = mac
-                    break
+                    print("Torvato il host migrated")
             #Now that we have host's mac, i can retrive ip-mac
             host_migrated_ip = self.arp_table_mac_ip[host_migrated_mac]
             #now that we have ip we must retrive all switches in which is present this ip-mac combination
-            switches_used = self.find_switches_related_to_ip(self.chosen_path_per_flow, host_migrated_ip)
+            switches_used = self.find_switches_related_to_ip(host_migrated_ip)
             #now that we have the switches, we are going to delete all from them 
             for s in switches_used:
                 self.delete_flows_by_ip(s, host_migrated_ip)
@@ -168,16 +148,6 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             self.already_routed = [route for route in self.already_routed if switch_and_port not in route]
             #IMPORTANT: delete from self.hosts the migrated hosts
             del self.hosts[host_migrated_mac]
-            
-        if reason == ofp.OFPPR_ADD: 
-            #it means the new host was added to switch
-            #We can retrive the new host with RYU TOPOLOGY API
-            hosts = get_host(self, dpid=datapath.id)
-            for host in hosts:
-                if host.port.port_no == port_no:
-                    host_tmp = host
-            #we insert this new host inside the self.hosts 
-            self.hosts[host_tmp.mac] = (datapath.id, port_no)
 
         if reason == ofp.OFPPR_MODIFY and (self.get_adjacent_switch(dpid, port_no) is not None): 
             #Link failure part
@@ -235,7 +205,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         [('192.168.1.1', '192.168.1.2'), ('192.168.1.3', '192.168.1.4'), ('192.168.1.5', '192.168.1.6')]
         """
         result = []
-        for src_ip, dst_dict in self.chosen_path_per_flow.items():
+        for src_ip, dst_dict in self.flow_path_cost.items():
             for dst_ip, (path, cost) in dst_dict.items():
                 if switch in path:
                     result.append((src_ip, dst_ip))
@@ -251,7 +221,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                     del dpid_sent_dict[target_dpid_sent]  # Delete the specific entry
 
 
-    def delete_flows_by_ip(self, datapath, ip):
+    def delete_flows_by_ip(self, dpid, ip):
+        datapath = self.dpidToDatapath[dpid]
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
@@ -277,7 +248,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         datapath.send_msg(mod)
 
 
-    def find_switches_related_to_ip(self, chosen_path_per_flow, ip):
+    def find_switches_related_to_ip(self, ip):
         """
         This function works specifically for chosen_path_per_flow
         data structure. It retrives all switches that are using a 
@@ -287,49 +258,16 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
         # Check for IP as a source
         if ip in self.chosen_path_per_flow:
-            for dst_ip, (path, cost) in chosen_path_per_flow[ip].items():
+            for dst_ip, (path, cost) in self.chosen_path_per_flow[ip].items():
                 related_switches.update(path)
 
         # Check for IP as a destination
-        for src_ip, dst_dict in chosen_path_per_flow.items():
+        for src_ip, dst_dict in self.chosen_path_per_flow.items():
             if ip in dst_dict:
                 path, cost = dst_dict[ip]
                 related_switches.update(path)
 
         return related_switches
-
-    def isLinkHostSwitch(self, dpid, port_no):
-        links = get_link(self, None)
-        for l in links:
-            if (l.src.dpid == dpid and l.src.port_no == port_no) or (l.dst.dpid == dpid and l.dst.port_no == port_no):
-                return False
-        return True
-    """
-    @set_ev_cls(event.EventHostAdd)
-    def _event_host_add_handler(self, ev):
-        #Host add event handler
-        host = ev.host.to_dict()  # Get host details as a dictionary
-        print_with_timestamp(f"Host details: {host}")  # Print the whole dictionary to inspect its structure
-    """
-    
-    @set_ev_cls(dpset.EventPortModify, MAIN_DISPATCHER)
-    def port_modify_handler(self, ev):
-        """
-        When the host will migrate, it will pop up this function. 
-        The purpose of this function is to get all the 
-        switches in the topology. And to get the host of a 
-        particular switch. 
-        """
-        print("PORT MODIFY")
-        port = ev.port
-        dp = ev.dp
-        pprint(self.hosts)
-        switches = get_switch(self, None)
-        for l in switches:
-            print (" \t\t" + str(l))
-        hosts = get_host(self, dpid=dp.id)
-        for l in hosts:
-            print (" \t\t" + str(l))
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
