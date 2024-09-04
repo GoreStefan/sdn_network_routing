@@ -334,11 +334,11 @@ def four_switches_network():
     time.sleep(20)
         
     #MIGRATION FUNCTIONS, CHOOSE ONE
-    
+    """
     h1, old = net.get('h1', 's1')
     new = net['s2']
     hintf, sintf = moveHost(h1, old, new )
-
+    """
     time.sleep(5)
     print_topology(net)
     CLI(net)

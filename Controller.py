@@ -886,7 +886,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             next_index = index + 1
             if next_index < len(new_path):
                 following_switch = new_path[next_index]
-                self.add_flow_specific_switch(switch, src_ip=src_ip, dst_ip=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
+                self.add_flow_specific_switch(switch, ip_src=src_ip, ip_dst=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
                 self.add_flow_specific_switch(switch, arp_spa=src_ip, arp_tpa=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
         hub.sleep(0.1)
         # second: mod flows
@@ -895,7 +895,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             next_index = index + 1
             if next_index < len(new_path):
                 following_switch = new_path[next_index]
-                self.mod_flow_specific_switch(switch, src_ip=src_ip, dst_ip=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
+                self.mod_flow_specific_switch(switch, ip_src=src_ip, ip_dst=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
                 self.mod_flow_specific_switch(switch, arp_spa=src_ip, arp_tpa=dst_ip, out_port=self.data_map[switch][following_switch]['in_port'])
         # third: delete flows
         for switch in flow_delete_list:
@@ -904,11 +904,9 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 self.bandwith_flow_dict[switch][src_ip].pop(dst_ip, None)
             except KeyError:
                 print("Key {} not found".format(dst_ip))
-            self.del_flow_specific_switch(switch, src_ip=src_ip, dst_ip=dst_ip)
+            self.del_flow_specific_switch(switch, ip_src=src_ip, ip_dst=dst_ip)
             self.del_flow_specific_switch(switch, arp_spa=src_ip, arp_tpa=dst_ip)
 
-        
-        
 
     def add_flow_specific_switch(self, switch, ip_src=None, ip_dst=None, arp_spa=None, arp_tpa=None, out_port=None):
         dp = self.dpidToDatapath[switch]  # Get the datapath object for the switch
@@ -957,8 +955,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             # Create a match for ARP packets
             match = ofp_parser.OFPMatch(
                 eth_type=0x0806,  # Ethernet type for ARP
-                arp_spa=ip_src,   # ARP Sender Protocol Address
-                arp_tpa=ip_dst    # ARP Target Protocol Address
+                arp_spa=arp_spa,   # ARP Sender Protocol Address
+                arp_tpa=arp_tpa    # ARP Target Protocol Address
             )
             priority = 32768  # High priority for ARP flows
         elif ip_src and ip_dst:
@@ -980,8 +978,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         if arp_spa and arp_tpa:
             match = ofp_parser.OFPMatch(
                 eth_type=0x0806,
-                arp_spa=ip_src,
-                arp_tpa=ip_dst
+                arp_spa=arp_spa,
+                arp_tpa=arp_tpa
             )
         elif ip_src and ip_dst:
             match = ofp_parser.OFPMatch(
