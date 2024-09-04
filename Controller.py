@@ -258,11 +258,11 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
         # Check for IP as a source
         if ip in self.chosen_path_per_flow:
-            for dst_ip, (path, cost) in self.chosen_path_per_flow[ip].items():
+            for dst_ip, (path, cost) in self.flow_path_cost[ip].items():
                 related_switches.update(path)
 
         # Check for IP as a destination
-        for src_ip, dst_dict in self.chosen_path_per_flow.items():
+        for src_ip, dst_dict in self.flow_path_cost.items():
             if ip in dst_dict:
                 path, cost = dst_dict[ip]
                 related_switches.update(path)
@@ -577,8 +577,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
                 latency_obj_rtt = {'timestamp': timestamp_sent, 'value': latency_link_echo_rtt * 1000}
                 self.data_map[dpid_rec][dpid_sent]['latencyRTT'].append(latency_obj_rtt)
                 self.last_arrived_package[dpid_rec][dpid_sent] = time.time()
-            else:
-                self.logger.info("Packet arrived earlier")
+            #else:
+                #self.logger.info("Packet arrived earlier")
             return
 
         if src_mac not in self.hosts:
@@ -705,8 +705,10 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         
         self.install_path(optimal_path, h1[1], h2[1], src_ip, dst_ip, typep)
         
-        #TESTING. 
-        #self.chosen_path_per_flow[src_ip][dst_ip] = {optimal_path, self.get_path_cost(optimal_path)}
+        #TESTING.
+        if src_ip not in self.chosen_path_per_flow:
+            self.chosen_path_per_flow[src_ip] = {}
+        self.chosen_path_per_flow[src_ip][dst_ip] = optimal_path
 
     def get_optimal_path(self, latency_dict, src, dst, typep):
         #get all paths from a src ip to dst ip 

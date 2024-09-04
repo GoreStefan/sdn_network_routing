@@ -331,7 +331,7 @@ def four_switches_network():
 
     #printing topology AFTER changing
     print_topology(net)
-    time.sleep(5)
+    time.sleep(20)
         
     #MIGRATION FUNCTIONS, CHOOSE ONE
     
