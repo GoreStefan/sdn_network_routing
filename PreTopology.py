@@ -246,7 +246,7 @@ def print_topology(net):
 def four_switches_network():
     net = Mininet(topo=None,
                   build=False,
-                  ipBase='10.0.0.0/8', link=TCLink)
+                  ipBase='10.0.0.0/8', link=TCLink, switch=MobilitySwitch)
 
     #Da sistemare i Config Files
     queue_lenght = 10
@@ -292,8 +292,7 @@ def four_switches_network():
     net.addLink(h4, s3)
     net.addLink(h5, s3)
     net.addLink(h6, s3)
-    #for migration
-    net.addLink(h1, s2)
+   
     """
     # Link hosts to switch s1
     net.addLink(h1, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
@@ -337,7 +336,7 @@ def four_switches_network():
     #MIGRATION FUNCTIONS, CHOOSE ONE
     
     h1, old = net.get('h1', 's1')
-    new = net['s2']
+    new = net[s2]
     hintf, sintf = moveHost(h1, old, new )
 
     time.sleep(5)
