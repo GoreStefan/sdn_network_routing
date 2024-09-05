@@ -332,13 +332,13 @@ def four_switches_network():
     #printing topology AFTER changing
     print_topology(net)
     time.sleep(20)
-        
+    """
     #MIGRATION FUNCTIONS, CHOOSE ONE
     print("**** MIGATRION PROCESS START ****")
     h1, old = net.get('h1', 's1')
-    new = net['s2']
+    new = net['s4']
     hintf, sintf = moveHost(h1, old, new )
-    
+    """
     time.sleep(5)
     print_topology(net)
     CLI(net)
