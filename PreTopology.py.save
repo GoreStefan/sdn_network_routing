@@ -266,13 +266,13 @@ def four_switches_network():
     s4 = net.addSwitch('s4')
 
     info('*** Add hosts\n')
-    h1 = net.addHost('h1', cls=Host, ip='10.0.0.1', mac='00:00:00:00:00:01',defaultRoute=None)
-    h2 = net.addHost('h2', cls=Host, ip='10.0.0.2', mac='00:00:00:00:00:02',defaultRoute=None)
-    h3 = net.addHost('h3', cls=Host, ip='10.0.0.3', mac='00:00:00:00:00:03',defaultRoute=None)
+    h1 = net.addHost('h1', cls=Host, ip='10.0.0.1', defaultRoute=None)
+    h2 = net.addHost('h2', cls=Host, ip='10.0.0.2', defaultRoute=None)
+    h3 = net.addHost('h3', cls=Host, ip='10.0.0.3', defaultRoute=None)
 
-    h4 = net.addHost('h4', cls=Host, ip='10.0.0.4', mac='00:00:00:00:00:04',defaultRoute=None)
-    h5 = net.addHost('h5', cls=Host, ip='10.0.0.5', mac='00:00:00:00:00:05',defaultRoute=None)
-    h6 = net.addHost('h6', cls=Host, ip='10.0.0.6', mac='00:00:00:00:00:06',defaultRoute=None)
+    h4 = net.addHost('h4', cls=Host, ip='10.0.0.4', defaultRoute=None)
+    h5 = net.addHost('h5', cls=Host, ip='10.0.0.5', defaultRoute=None)
+    h6 = net.addHost('h6', cls=Host, ip='10.0.0.6', defaultRoute=None)
 
     info('*** Add links\n')
     net.addLink(s1, s2, delay='10ms', use_tbf=True, bw=3, max_queue_size=queue_lenght, latency_ms=10000000,
@@ -334,7 +334,7 @@ def four_switches_network():
     time.sleep(20)
         
     #MIGRATION FUNCTIONS, CHOOSE ONE
-    print("**** MIGATRION PROCESS START ****")
+    print("MIGRATION")
     h1, old = net.get('h1', 's1')
     new = net['s2']
     hintf, sintf = moveHost(h1, old, new )

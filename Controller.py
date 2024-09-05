@@ -128,10 +128,12 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         port_no = ev.port_no    # Port number where the change occurred
         reason = ev.reason      # Reason for the port state change 
         dpid = datapath.id      #verify if exists
+        print(f"DPID: {dpid}, Port No: {port_no}, Reason: {reason}")
 
-        if reason == ofp.OFPPR_DELETE and (self.get_adjacent_switch(dpid, port_no) is not None): 
+        if reason == ofp.OFPPR_DELETE and (self.get_adjacent_switch(dpid, port_no) is None): 
             #Migration part
             #Indetify which host was removed/migrated thanks to the stored information inside the controller
+            print("Inside Host migration")
             for mac, (sw_id, port) in self.hosts.items():
                 if sw_id == dpid and port == port_no:
                     host_migrated_mac = mac
@@ -140,14 +142,19 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             host_migrated_ip = self.arp_table_mac_ip[host_migrated_mac]
             #now that we have ip we must retrive all switches in which is present this ip-mac combination
             switches_used = self.find_switches_related_to_ip(host_migrated_ip)
-            #now that we have the switches, we are going to delete all from them 
+            pprint(switches_used)
+            #now that we have the switches, we are going to delete all from them
+            print(f"Host migrated IP: {host_migrated_ip}")
             for s in switches_used:
                 self.delete_flows_by_ip(s, host_migrated_ip)
             #IMPORTANT: delete from already_routed
-            switch_and_port = self.hosts[host_migrated_ip]
+            switch_and_port = self.hosts[host_migrated_mac]
             self.already_routed = [route for route in self.already_routed if switch_and_port not in route]
+            pprint(self.already_routed)
             #IMPORTANT: delete from self.hosts the migrated hosts
             del self.hosts[host_migrated_mac]
+            pprint(self.hosts)
+            print("Finish migration")
 
         if reason == ofp.OFPPR_MODIFY and (self.get_adjacent_switch(dpid, port_no) is not None): 
             #Link failure part
@@ -226,13 +233,15 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        match_src = parser.OFPMatch(ipv4_src=ip)
-        match_dst = parser.OFPMatch(ipv4_dst=ip)
+        match_src = parser.OFPMatch(eth_type=0x0800,ipv4_src=ip)
+        match_dst = parser.OFPMatch(eth_type=0x0800,ipv4_dst=ip)
+        match_arp_spa = parser.OFPMatch(eth_type=0x0806,arp_spa=ip)
+        match_arp_tpa = parser.OFPMatch(eth_type=0x0806,arp_tpa=ip)
 
-        # Delete flow where IP matches as source
         self.remove_flow(datapath, match_src)
-        # Delete flow where IP matches as destination
         self.remove_flow(datapath, match_dst)
+        self.remove_flow(datapath, match_arp_spa)
+        self.remove_flow(datapath, match_arp_tpa)
 
     def remove_flow(self, datapath, match):
         ofproto = datapath.ofproto
@@ -583,6 +592,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
 
         if src_mac not in self.hosts:
             self.hosts[src_mac] = (dpid_rec, in_port)
+            print("**** SELF.HOSTS INSERTION ****")
+            pprint(self.hosts)
         # filter packets
         if eth_pkt.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
