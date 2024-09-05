@@ -89,8 +89,6 @@ def pseudo_mesh_network():
     info('*** Starting switches\n')
     start_switches(net, ['s1', 's2', 's3', 's4', 's5', 's6'], c0)
 
-    time.sleep(20)
-
     print("Starting iperf ")
     start_new_thread(startIperf, (h1, h4, 2.75, 5001, timeTotal))
     start_new_thread(startIperf, (h2, h5, 1.75, 5001, timeTotal))
@@ -98,8 +96,6 @@ def pseudo_mesh_network():
 
     print_topology(net)
     CLI(net)
-    time.sleep(10000)
-    
     net.stop()
 
 if __name__ == '__main__':
