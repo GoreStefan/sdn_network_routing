@@ -20,17 +20,6 @@ sys.path.append(".")
 print(os.getcwd())
 print(sys.path.__str__())
 
-
-#                s2
-#  h1    10ms /     \ 10ms  h4
-#  h2 --     s1       s3 -- h5
-#  h3    14ms \     / 14ms  h6
-#                s4
-
-###################################################################
-############### Scenario - 6 Hosts    #############################
-###################################################################
-
 def printConnections( switches ):
     "Compactly print connected nodes to each switch"
     for sw in switches:
@@ -42,12 +31,6 @@ def printConnections( switches ):
                 remote = intf1 if intf1.node != sw else intf2
                 output( '%s(%s) ' % ( remote.node, sw.ports[ intf ] ) )
         output( '\n' )
-
-def moveHost( host, oldSwitch, newSwitch, newPort=None ):
-    "Move a host from old switch to new switch"
-    hintf, sintf = host.connectionsTo( oldSwitch )[ 0 ]
-    oldSwitch.moveIntf( sintf, newSwitch, port=newPort )
-    return hintf, sintf
 
 def startIperf(host1, host2, bw, port, timeTotal):
     # host2.cmd("iperf -s -u -p {} &".format(port))
@@ -75,7 +58,7 @@ def terminate_iperf_on_host(host):
     """
     Terminates the iperf command running on a given Mininet host.
     """
-    host.cmd("pkill -f iperf")   
+    host.cmd("pkill -f iperf")
 
 def min_to_sec(min):
     return min * 60
@@ -105,13 +88,15 @@ def print_topology(net):
         print(f"Link: {intf1} <--> {intf2}, Bandwidth: {bw} Mbps, Latency: {delay}")
 
 
-def four_switches_network():
+def simple_mesh_network():
     net = Mininet(topo=None,
                   build=False,
                   ipBase='10.0.0.0/8', link=TCLink, switch=MobilitySwitch)
 
-    queue_lenght = 10
+    
+    queue_lenght=10
     timeTotal = min_to_sec(10)
+
     controllerIP = '127.0.0.1'
     info('*** Adding controller\n')
     c0 = net.addController(name='c0',
@@ -125,6 +110,8 @@ def four_switches_network():
     s2 = net.addSwitch('s2')
     s3 = net.addSwitch('s3')
     s4 = net.addSwitch('s4')
+    s5 = net.addSwitch('s5')
+    s6 = net.addSwitch('s6')
 
     info('*** Add hosts\n')
     h1 = net.addHost('h1', cls=Host, ip='10.0.0.1', mac='00:00:00:00:00:01',defaultRoute=None)
@@ -138,22 +125,29 @@ def four_switches_network():
     info('*** Add links switch\n')
     net.addLink(s1, s2, delay='10ms', use_tbf=True, bw=3, max_queue_size=queue_lenght, latency_ms=10000000,
                     burst=1000000)
-    net.addLink(s2, s3, delay='10ms', use_tbf=True, bw=3, max_queue_size=queue_lenght, latency_ms=10000000,
+    net.addLink(s2, s3, delay='5ms', use_tbf=True, bw=3, max_queue_size=queue_lenght, latency_ms=10000000,
                     burst=1000000)
-    net.addLink(s1, s4, delay='14ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
+    net.addLink(s3, s4, delay='8ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
                     burst=1000000)
-    net.addLink(s4, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
+    net.addLink(s4, s5, delay='10ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
                     burst=1000000)
-    
+    net.addLink(s5, s2, delay='2ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
+                    burst=1000000)
+    net.addLink(s1, s4, delay='15ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
+                    burst=1000000)
+    net.addLink(s1, s6, delay='20ms', use_tbf=True, bw=4, max_queue_size=queue_lenght, latency_ms=10000000,
+                    burst=1000000)
+
+
     info('*** Add links host\n')
     net.addLink(h1, s1)
-    net.addLink(h2, s1)
-    net.addLink(h3, s1)
+    net.addLink(h2, s2)
+    net.addLink(h3, s3)
 
-    net.addLink(h4, s3)
-    net.addLink(h5, s3)
-    net.addLink(h6, s3)
-   
+    net.addLink(h4, s4)
+    net.addLink(h5, s5)
+    net.addLink(h6, s6)
+
     info('*** Starting network\n')
     net.build()
     info('*** Starting controllers\n')
@@ -165,40 +159,25 @@ def four_switches_network():
     net.get('s2').start([c0])
     net.get('s3').start([c0])
     net.get('s4').start([c0])
+    net.get('s5').start([c0])
+    net.get('s6').start([c0])
 
-    time.sleep(5)
+    time.sleep(20)
 
     print("Starting iperf ")
     start_new_thread(startIperf, (h1, h4, 2.75, 5001, timeTotal))
     start_new_thread(startIperf, (h2, h5, 1.75, 5001, timeTotal))
     start_new_thread(startIperf, (h3, h6, 1.75, 5001, timeTotal))
 
-    #h1 is connected with bot s1 and s2, i want to shut 
-    #h1.cmd('ifconfig h1-eth1 down')
-
-    #printing topology AFTER changing
-    print_topology(net)
-    time.sleep(20)
-        
-    #MIGRATION FUNCTIONS, CHOOSE ONE
-    print("**** MIGATRION PROCESS START ****")
-    h1, old = net.get('h1', 's1')
-    new = net['s2']
-    hintf, sintf = moveHost(h1, old, new )
-    
-    time.sleep(5)
     print_topology(net)
     CLI(net)
     time.sleep(10000)
-    #stop_controller()
     
     net.stop()
 
-
 if __name__ == '__main__':
     setLogLevel('info')
-    
-four_switches_network()
 
+simple_mesh_network()
 
 

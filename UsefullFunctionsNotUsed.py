@@ -1,3 +1,18 @@
+"""
+    # Link hosts to switch s1
+    net.addLink(h1, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h2, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h3, s1, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+
+    # Link hosts to switch s3
+    net.addLink(h4, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h5, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    net.addLink(h6, s3, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+    """
+    # Additional link from h1 to s2 for migration
+    #net.addLink(h1, s2, delay='14ms', use_tbf=True, bw=4, max_queue_size=1000, burst=1000000)
+
+
 @set_ev_cls(event.EventHostAdd)
 def _event_host_add_handler(self, ev):
     msg = ev.host.to_dict()
