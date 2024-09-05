@@ -8,7 +8,7 @@ from mininet.link import TCLink, Intf
 from mininet.node import OVSSwitch
 from mininet.log import info, output, warn, setLogLevel
 from _thread import start_new_thread
-from MobilitySwitch import MobilitySwitch
+from Topology_Tools import *
 import os, stat
 import json
 import time
@@ -20,75 +20,7 @@ sys.path.append(".")
 print(os.getcwd())
 print(sys.path.__str__())
 
-def printConnections( switches ):
-    "Compactly print connected nodes to each switch"
-    for sw in switches:
-        output( '%s: ' % sw )
-        for intf in sw.intfList():
-            link = intf.link
-            if link:
-                intf1, intf2 = link.intf1, link.intf2
-                remote = intf1 if intf1.node != sw else intf2
-                output( '%s(%s) ' % ( remote.node, sw.ports[ intf ] ) )
-        output( '\n' )
-
-def startIperf(host1, host2, bw, port, timeTotal):
-    # host2.cmd("iperf -s -u -p {} &".format(port))
-    print("Host {} to Host {} Bandwidth: {}".format(host1.name, host2.name, bw))
-    command = "iperf -c {} -u -p {} -t {} -b {}M &".format(host2.IP(), port, timeTotal, bw)
-    host1.cmd(command)
-
-def pause_iperf(host):
-    """
-    Pause the iperf server running on the host.
-    :param host: The Mininet host object.
-    """
-    host.cmd('pkill -STOP iperf')
-    print(f"Paused iperf server on {host.name}")
-
-def resume_iperf(host):
-    """
-    Resume the iperf server running on the host.
-    :param host: The Mininet host object.
-    """
-    host.cmd('pkill -CONT iperf')
-    print(f"Resumed iperf server on {host.name}")
-
-def terminate_iperf_on_host(host):
-    """
-    Terminates the iperf command running on a given Mininet host.
-    """
-    host.cmd("pkill -f iperf")
-
-def min_to_sec(min):
-    return min * 60
-
-def print_topology(net):
-    """
-    Print the Mininet topology.
-    :param net: Mininet object representing the network.
-    """
-    print("Hosts:")
-    for host in net.hosts:
-        print(f"Host: {host.name}, IP: {host.IP()}")
-
-    print("\nSwitches:")
-    for switch in net.switches:
-        print(f"Switch: {switch.name}")
-
-    print("\nLinks:")
-    for link in net.links:
-        intf1 = link.intf1
-        intf2 = link.intf2
-
-        # Extracting the link parameters
-        link_options = net.linksBetween(intf1.node, intf2.node)[0]
-        bw = link_options.intf1.params.get('bw', 'N/A')
-        delay = link_options.intf1.params.get('delay', 'N/A')
-        print(f"Link: {intf1} <--> {intf2}, Bandwidth: {bw} Mbps, Latency: {delay}")
-
-
-def simple_mesh_network():
+def pseudo_mesh_network():
     net = Mininet(topo=None,
                   build=False,
                   ipBase='10.0.0.0/8', link=TCLink, switch=MobilitySwitch)
@@ -155,12 +87,7 @@ def simple_mesh_network():
         controller.start()
 
     info('*** Starting switches\n')
-    net.get('s1').start([c0])
-    net.get('s2').start([c0])
-    net.get('s3').start([c0])
-    net.get('s4').start([c0])
-    net.get('s5').start([c0])
-    net.get('s6').start([c0])
+    start_switches(net, ['s1', 's2', 's3', 's4', 's5', 's6'], c0)
 
     time.sleep(20)
 
@@ -178,6 +105,6 @@ def simple_mesh_network():
 if __name__ == '__main__':
     setLogLevel('info')
 
-simple_mesh_network()
+pseudo_mesh_network()
 
 
