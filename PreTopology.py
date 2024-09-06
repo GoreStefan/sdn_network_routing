@@ -364,3 +364,4 @@ def changeBandwith(node, bw, delay):
         intfs[0].config(bw=newBW, delay = delay)
         intfs[1].config(bw=newBW, delay = delay)
         print("changing bandwidth")
+
