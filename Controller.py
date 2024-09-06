@@ -194,6 +194,46 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         # Return None if no adjacent switch is found
         return None
 
+    @set_ev_cls(event.EventSwitchLeave)
+    def switch_leave_handler(self, ev):
+        self.logger.info('Switch disconnected: %s', ev.switch.dp.id)
+        #getting all ips affected by the switch failure
+        ips = self.get_ips_with_switch(ev.switch.dp.id)
+        pprint(ips)
+        #removing data from data_map
+        self.remove_dpid(ev.switch.dp.id)
+        self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
+        #do rerouting of all ips
+        self.reroute_paths(ips)
+        pprint(self.flow_path_cost)
+
+    """
+    Function to remove any key related to a data structure
+    """
+    def remove_dpid(self, dpid_sent_to_remove):
+        # Collect dpids to be removed
+        dpids_to_remove = list(self.data_map.keys())
+        
+        for dpid_rec in dpids_to_remove:
+            # Remove the specific dpid_sent if it exists
+            if dpid_sent_to_remove in self.data_map[dpid_rec]:
+                del self.data_map[dpid_rec][dpid_sent_to_remove]
+                
+                # If dpid_rec has no other dpid_sent entries, remove dpid_rec
+                if not self.data_map[dpid_rec]:
+                    del self.data_map[dpid_rec]
+
+    # Function to retrieve IPs based on a specific switch ID
+    def get_ips_with_switch(self, switch_id):
+        matching_ips = []
+        # Loop through the structure to check each path
+        for ip_src, destinations in self.flow_path_cost.items():
+            for ip_dst, (path, _) in destinations.items():
+                if switch_id in path:  # Check if the switch_id is in the path
+                    matching_ips.append((ip_src, ip_dst))
+        return matching_ips
+
+
     def reroute_paths(self, matching_ips):
         for src_ip, dst_ip in matching_ips:
             
@@ -205,6 +245,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             
             # Call the reroute function
             self.reroute(src_ip, dst_ip, new_optimal_path)
+            #this data structure needs to be updated a
+            self.flow_path_cost[src_ip][dst_ip] = (new_optimal_path, self.get_path_cost(self.latency_dict, new_optimal_path))
 
     def find_ips_with_switch(self, switch):
         """
@@ -856,6 +898,8 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         flow_delete_list = []
 
         difference_set = set(chosenflow_prev).difference(new_path)
+        print("difference_set")
+        print(difference_set)
         # check if things deleted
         if len(difference_set) > 0:
             flow_delete_list = list(difference_set)
@@ -891,6 +935,10 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         flow_mod_list = list(dict.fromkeys(flow_mod_list))
         flow_mod_list.reverse()
         # first addFlows
+        print("*** flow add list ***")
+        print(flow_add_list)
+        print(flow_delete_list)
+        print(flow_mod_list)
         for switch in flow_add_list:
             # get index of next switch
             index = new_path.index(switch)
