@@ -26,7 +26,7 @@ class MyCLI(CLI):
         self.mn = self.mn
 
     def do_migrate(self, line):
-        "Esegue la migrazione dell'host"
+        "Do host migration"
         args = line.split()
         if len(args) != 3:
             print("Usage: migrate <host> <oldSwitch> <newSwitch>")

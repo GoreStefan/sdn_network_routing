@@ -32,12 +32,6 @@ print(sys.path.__str__())
 ############### Scenario - 6 Hosts    #############################
 ###################################################################
 
-def moveHost( host, oldSwitch, newSwitch, newPort=None ):
-    "Move a host from old switch to new switch"
-    hintf, sintf = host.connectionsTo( oldSwitch )[ 0 ]
-    oldSwitch.moveIntf( sintf, newSwitch, port=newPort )
-    return hintf, sintf
-
 def four_switches_network():
     net = Mininet(topo=None,
                   build=False,
@@ -45,6 +39,7 @@ def four_switches_network():
 
     queue_lenght = 10
     timeTotal = min_to_sec(10)
+
     controllerIP = '127.0.0.1'
     info('*** Adding controller\n')
     c0 = net.addController(name='c0',
@@ -104,23 +99,7 @@ def four_switches_network():
     start_new_thread(startIperf, (h2, h5, 1.75, 5001, timeTotal))
     start_new_thread(startIperf, (h3, h6, 1.75, 5001, timeTotal))
 
-
-    #h1 is connected with bot s1 and s2, i want to shut 
-    #h1.cmd('ifconfig h1-eth1 down')
-
-    #printing topology AFTER changing
     print_topology(net)
-
-    time.sleep(20)
-
-    '''
-    #MIGRATION FUNCTIONS, CHOOSE ONE
-    print("**** MIGATRION PROCESS START ****")
-    h1, old = net.get('h1', 's1')
-    new = net['s2']
-    hintf, sintf = moveHost(h1, old, new )
-    print_topology(net)
-    '''
     
     MyCLI(net)
     net.stop()

@@ -21,7 +21,15 @@ sys.path.append(".")
 print(os.getcwd())
 print(sys.path.__str__())
 
-def pseudo_mesh_network():
+#
+#     h2---s2--5ms--s3--h3
+#     10ms/  \_2ms    \ 8ms
+#   h1--s1-15ms-\_----s4--h4
+#    20ms\        \_  /10ms
+#    h6--s6         s5--h5
+#
+
+def redundant_network():
     net = Mininet(topo=None,
                   build=False,
                   ipBase='10.0.0.0/8', link=TCLink, switch=MobilitySwitch)
@@ -104,6 +112,6 @@ def pseudo_mesh_network():
 if __name__ == '__main__':
     setLogLevel('info')
 
-pseudo_mesh_network()
+redundant_network()
 
 
