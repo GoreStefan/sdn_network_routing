@@ -20,7 +20,7 @@ Inside this folder, we have four different files: two for utility purposes and t
                s4
     ```
 
-- **PseudoMeshNetwork**: A more complex and redundant network topology, described as follows:
+- **RedundantNetwork**: A more complex and redundant network topology, described as follows:
     ```
         h2---s2--5ms--s3--h3
         10ms/  \_2ms    \ 8ms
