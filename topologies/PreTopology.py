@@ -8,8 +8,8 @@ from mininet.link import TCLink, Intf
 from mininet.node import OVSSwitch
 from mininet.log import info, output, warn, setLogLevel
 from _thread import start_new_thread
-from Topology_Tools import *
-from Custom_CLI import *
+from TopologyTools import *
+from CustomCLI import *
 import os, stat
 import json
 import time
