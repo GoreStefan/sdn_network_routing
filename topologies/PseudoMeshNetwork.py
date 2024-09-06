@@ -9,6 +9,7 @@ from mininet.node import OVSSwitch
 from mininet.log import info, output, warn, setLogLevel
 from _thread import start_new_thread
 from TopologyTools import *
+from CustomCLI import *
 import os, stat
 import json
 import time
@@ -89,13 +90,15 @@ def pseudo_mesh_network():
     info('*** Starting switches\n')
     start_switches(net, ['s1', 's2', 's3', 's4', 's5', 's6'], c0)
 
+    time.sleep(5)
+
     print("Starting iperf ")
     start_new_thread(startIperf, (h1, h4, 2.75, 5001, timeTotal))
     start_new_thread(startIperf, (h2, h5, 1.75, 5001, timeTotal))
     start_new_thread(startIperf, (h3, h6, 1.75, 5001, timeTotal))
 
     print_topology(net)
-    CLI(net)
+    MyCLI(net)
     net.stop()
 
 if __name__ == '__main__':

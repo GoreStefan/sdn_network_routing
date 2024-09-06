@@ -34,17 +34,25 @@ class MyCLI(CLI):
 
         host_name, old_switch_name, new_switch_name = args
 
-    
-
         h, old = self.mn.get(host_name, old_switch_name)
         new = self.mn[new_switch_name]
 
-        terminate_iperf_on_host(h)
+        for ho in self.mn.hosts:
+            terminate_iperf_on_host(ho)
+
+        time.sleep(2)
 
         print(f"**** MIGRATION PROCESS START for {host_name} ****")
         hintf, sintf = moveHost(h, old, new)
         print(f"**** MIGRATION PROCESS END for {host_name} ****")
+
+        h0 = self.mn.hosts[0]
+
+        for ho in self.mn.hosts:
+            start_new_thread(startIperf, (ho, h0, 2.75, 5001, 20))
+
         print_topology(self.mn)
+
 
         
     
