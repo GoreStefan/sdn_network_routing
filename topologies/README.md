@@ -185,8 +185,3 @@ print_topology(net)
 MyCLI(net)
 net.stop()
 ```
-
-## Conclusion
-
-This folder provides the utilities and topologies required to run a Mininet network with custom traffic management and host migration functionality. The `MobilitySwitch` class, along with the `CustomCLI` commands, enables us to dynamically move hosts between switches in a live network, ensuring minimal disruption to the traffic.
-
