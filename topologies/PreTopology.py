@@ -93,11 +93,11 @@ def four_switches_network():
 
     time.sleep(5)
 
-
     print("Starting iperf ")
     start_new_thread(startIperf, (h1, h4, 2.75, 5001, timeTotal))
     start_new_thread(startIperf, (h2, h5, 1.75, 5001, timeTotal))
     start_new_thread(startIperf, (h3, h6, 1.75, 5001, timeTotal))
+
 
     print_topology(net)
     

@@ -38,6 +38,7 @@ class MyCLI(CLI):
         new = self.mn[new_switch_name]
 
         for ho in self.mn.hosts:
+            print("terminate iperf on host" + str(ho))
             terminate_iperf_on_host(ho)
 
         time.sleep(2)
@@ -46,10 +47,17 @@ class MyCLI(CLI):
         hintf, sintf = moveHost(h, old, new)
         print(f"**** MIGRATION PROCESS END for {host_name} ****")
 
-        h0 = self.mn.hosts[0]
+        print(f'starting new Iperf servers...')
 
+        h0 = self.mn.hosts[0]
+        if h0 == h:
+            h0 = self.mn.hosts[1]
+
+        print(str(ho))
         for ho in self.mn.hosts:
-            start_new_thread(startIperf, (ho, h0, 2.75, 5001, 20))
+            if h0 != ho:
+                start_new_thread(startIperf, (ho, h0, 1.00, 5001, 20))
+        
 
         print_topology(self.mn)
 
