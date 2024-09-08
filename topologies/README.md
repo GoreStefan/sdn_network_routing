@@ -12,22 +12,10 @@ Inside this folder, we have four different files: two for utility purposes and t
 ### Topology Files
 
 - **PreTopology**: A simple network topology, described as follows:
-    ```
-               s2
-    h1    10ms /     \ 10ms  h4
-    h2 --     s1       s3 -- h5
-    h3    14ms \     / 14ms  h6
-               s4
-    ```
+    ![PreTopologyScheme.jpeg]
 
 - **RedundantNetwork**: A more complex and redundant network topology, described as follows:
-    ```
-        h2---s2--5ms--s3--h3
-        10ms/  \_2ms    \ 8ms
-      h1--s1-15ms-\_----s4--h4
-       20ms\        \_  /10ms
-       h6--s6         s5--h5
-    ```
+    ![RedundantNetworkScheme.jpeg]
 
 ## Description of Main Components in TopologyTools
 
