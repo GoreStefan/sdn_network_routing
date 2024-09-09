@@ -137,7 +137,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             for mac, (sw_id, port) in self.hosts.items():
                 if sw_id == dpid and port == port_no:
                     host_migrated_mac = mac
-                    print("Torvato il host migrated")
+                    print("Found host migrated")
             #Now that we have host's mac, i can retrive ip-mac
             host_migrated_ip = self.arp_table_mac_ip[host_migrated_mac]
             #now that we have ip we must retrive all switches in which is present this ip-mac combination
@@ -171,6 +171,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
             self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
             #now we iterate and reroute every ips pairs
             self.reroute_paths(ips)
+            pprint(self.chosen_path_per_flow)
 
     def get_adjacent_switch(self, dpid, port_no):
         """
@@ -205,7 +206,7 @@ class ControllerMain(simple_switch_13.SimpleSwitch13):
         self.latency_dict = self.convert_data_map_to_dict(self.data_map, 'latencyRTT')
         #do rerouting of all ips
         self.reroute_paths(ips)
-        pprint(self.flow_path_cost)
+        pprint(self.chosen_path_per_flow)
 
     """
     Function to remove any key related to a data structure
