@@ -36,6 +36,15 @@
      - **Switch Failure:** Simulate a switch failure (e.g., `switch s1 down`)
      - **Host Migration:** Migrate a host (e.g., `migrate h1 s1 s2`)
 
+## Demo Video
+![Demo Video](DemoSoftwarize.mp4)
+
+<video width="600" controls>
+  <source src="DemoSoftwarize.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+
 ## Troubleshooting
 
 - If Mininet does not close properly, run the following command before starting the controller again:
