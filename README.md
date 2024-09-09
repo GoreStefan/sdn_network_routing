@@ -37,7 +37,7 @@
      - **Host Migration:** Migrate a host (e.g., `migrate h1 s1 s2`)
 
 ## Demo Video
-![Demo Video](DemoSoftwarize.mp4)
+![Demo Video](DemoSoftwarized.mp4)
 
 <video width="600" controls>
   <source src="DemoSoftwarize.mp4" type="video/mp4">
