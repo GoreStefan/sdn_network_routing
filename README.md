@@ -33,7 +33,7 @@
 4. **Test real-time features:**
    - Wait for the controller to install the forwarding table inside the switches, then you can test the following features:
      - **Link Failure:** Bring down a link (e.g., `link s1 s2 down`)
-     - **Switch Failure:** Simulate a switch failure (e.g., `switch s1 down`)
+     - **Switch Failure:** Simulate a switch failure (e.g., `switch s1 stop`)
      - **Host Migration:** Migrate a host (e.g., `migrate h1 s1 s2`)
 
 ## Video Demo
