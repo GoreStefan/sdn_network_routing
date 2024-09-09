@@ -36,7 +36,7 @@
      - **Switch Failure:** Simulate a switch failure (e.g., `switch s1 down`)
      - **Host Migration:** Migrate a host (e.g., `migrate h1 s1 s2`)
 
-## Demo Video
+## Video Demo
 [![Watch the video](https://img.youtube.com/vi/zhclnHBGCf0/maxresdefault.jpg)](https://youtu.be/zhclnHBGCf0)
 
 
