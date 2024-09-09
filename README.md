@@ -40,7 +40,7 @@
 ![Demo Video](DemoSoftwarized.mp4)
 
 <video width="600" controls>
-  <source src="DemoSoftwarize.mp4" type="video/mp4">
+  <source src="DemoSoftwarized.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
