@@ -37,7 +37,7 @@
      - **Host Migration:** Migrate a host (e.g., `migrate h1 s1 s2`)
 
 ## Demo Video
-[![Watch the video](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://youtu.be/zhclnHBGCf0)
+[![Watch the video](https://img.youtube.com/vi/zhclnHBGCf0/maxresdefault.jpg)](https://youtu.be/zhclnHBGCf0)
 
 
 ## Troubleshooting
